@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="10dp">
 
     <LinearLayout
         android:id="@+id/widget_setup"
@@ -22,8 +22,8 @@
 
             <ImageView
                 android:id="@+id/widget_icon"
-                android:layout_width="35dp"
-                android:layout_height="35dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
                 android:contentDescription="@string/steps_title"
                 android:src="@drawable/ic_widget_steps" />
 
@@ -127,7 +127,7 @@
             android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_text"
-            android:textSize="26sp" />
+            android:textSize="28sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -160,8 +160,8 @@
             android:id="@+id/widget_progress"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
-            android:layout_height="6dp"
-            android:layout_marginTop="4dp"
+            android:layout_height="5dp"
+            android:layout_marginTop="5dp"
             android:max="100"
             android:progress="0"
             android:progressDrawable="@drawable/widget_progress" />
@@ -169,7 +169,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:orientation="horizontal">
 
             <TextView

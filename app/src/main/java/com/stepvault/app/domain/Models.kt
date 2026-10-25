@@ -31,6 +31,26 @@ data class DaySteps(
     }
 }
 
+data class HourlySteps(
+    val hour: Int,
+    val steps: Int,
+    val distanceMeters: Double,
+    val calories: Double,
+    val activeSeconds: Long,
+) {
+    val distanceKm: Double get() = distanceMeters / 1_000.0
+
+    companion object {
+        fun empty(hour: Int): HourlySteps = HourlySteps(
+            hour = hour,
+            steps = 0,
+            distanceMeters = 0.0,
+            calories = 0.0,
+            activeSeconds = 0L,
+        )
+    }
+}
+
 enum class StepStatus {
     READY,
     PERMISSION_REQUIRED,
@@ -46,6 +66,7 @@ data class StepSnapshot(
     val status: StepStatus,
     val message: String? = null,
     val lastSync: Long? = null,
+    val hoursByDay: Map<LocalDate, List<HourlySteps>> = emptyMap(),
 ) {
     val progressFraction: Float
         get() = (today.steps.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f)

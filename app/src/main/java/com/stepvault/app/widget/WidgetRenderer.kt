@@ -93,6 +93,10 @@ object WidgetRenderer {
             R.id.widget_2x1_progress,
             if (showData) View.VISIBLE else View.GONE,
         )
+        views.setViewVisibility(
+            R.id.widget_2x1_metrics,
+            if (showData) View.VISIBLE else View.GONE,
+        )
         if (showData) {
             views.setTextViewText(
                 R.id.widget_2x1_title,
@@ -111,6 +115,20 @@ object WidgetRenderer {
                 },
             )
             views.setProgressBar(R.id.widget_2x1_progress, 100, snapshot.progressPercent, false)
+            views.setTextViewText(
+                R.id.widget_2x1_distance,
+                context.getString(
+                    R.string.widget_distance_format,
+                    Formatters.distanceKm(snapshot.today.distanceKm),
+                ),
+            )
+            views.setTextViewText(
+                R.id.widget_2x1_calories,
+                context.getString(
+                    R.string.widget_calories_format,
+                    Formatters.calories(snapshot.today.calories),
+                ),
+            )
         } else {
             views.setTextViewText(
                 R.id.widget_2x1_title,

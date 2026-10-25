@@ -73,6 +73,39 @@ object StepAggregator {
         return days
     }
 
+    fun aggregateHourly(
+        samples: List<StepSample>,
+        zone: ZoneId,
+        date: LocalDate,
+    ): List<HourlySteps> {
+        val totals = Array(24) { MutableTotals() }
+
+        for (sample in samples) {
+            if (sample.steps <= 0) continue
+            val begin = Instant.ofEpochMilli(sample.beginTime).atZone(zone)
+            if (begin.toLocalDate() != date) continue
+
+            val metrics = metrics(sample)
+            val hour = begin.hour.coerceIn(0, 23)
+            val bucket = totals[hour]
+            bucket.steps += sample.steps
+            bucket.distanceMeters += metrics.distanceMeters
+            bucket.calories += metrics.calories
+            bucket.activeSeconds += metrics.activeSeconds
+        }
+
+        return List(24) { hour ->
+            val bucket = totals[hour]
+            HourlySteps(
+                hour = hour,
+                steps = bucket.steps,
+                distanceMeters = bucket.distanceMeters,
+                calories = bucket.calories,
+                activeSeconds = bucket.activeSeconds,
+            )
+        }
+    }
+
     private class MutableTotals {
         var steps: Int = 0
         var distanceMeters: Double = 0.0

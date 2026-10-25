@@ -119,6 +119,29 @@ class StepAggregatorTest {
     }
 
     @Test
+    fun aggregateHourly_bucketsSamplesByBeginHourAndZeroFills() {
+        val samples = listOf(
+            sample(at(9), durationSeconds = 600, steps = 1_000),
+            sample(at(9, 30), durationSeconds = 600, steps = 500),
+            sample(at(18), durationSeconds = 600, steps = 700),
+            sample(today.minusDays(1).atTime(9, 0).atZone(zone), 600, 10_000),
+        )
+
+        val result = StepAggregator.aggregateHourly(
+            samples = samples,
+            zone = zone,
+            date = today,
+        )
+
+        assertEquals(24, result.size)
+        assertEquals(1_500, result[9].steps)
+        assertEquals(700, result[18].steps)
+        assertEquals(0, result[0].steps)
+        assertEquals(2_200, result.sumOf { it.steps })
+        assertEquals(1_320.0, result.sumOf { it.distanceMeters }, 0.0001)
+    }
+
+    @Test
     fun progress_isClampedAtOneHundredPercent() {
         val snapshot = StepSnapshot(
             today = DaySteps(today, 12_000, 7_200.0, 480.0, 3_600L),

@@ -33,4 +33,11 @@ object Formatters {
         minutes >= 60L -> "${minutes / 60L}h ${minutes % 60L}m"
         else -> "$minutes min"
     }
+
+    fun hourRange(hour: Int): String = String.format(
+        Locale.getDefault(),
+        "%02d:00–%02d:00",
+        hour.coerceIn(0, 23),
+        (hour + 1) % 24,
+    )
 }

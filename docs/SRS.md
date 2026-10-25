@@ -13,11 +13,12 @@ In scope:
 - Reading step records from `com.miui.providers.steps`.
 - Runtime permission handling for `ACTIVITY_RECOGNITION` and Xiaomi's `miui.permission.READ_STEPS`.
 - Daily aggregation of steps, distance, calories, and active time.
-- Local caching of the last 60 days.
-- A Compose dashboard with goal ring, stats, and a 7-day chart.
+- Hourly aggregation derived from provider begin times.
+- Local caching of the last 60 days of daily and hourly data.
+- A Compose dashboard with goal ring, stats, an interactive 7-day chart, and an interactive hourly chart.
 - A configurable daily step goal (default 8,000).
 - 4x2 and 2x1 widgets with setup and active states.
-- Periodic background refresh.
+- Periodic background refresh plus an in-process provider observer for low-latency widget refresh.
 
 Out of scope:
 
@@ -35,8 +36,9 @@ Out of scope:
 | MIUI provider | Xiaomi system content provider exposing aggregated step records |
 | Sample | One provider row: begin time, end time, mode, steps |
 | Day record | Aggregated totals for one local calendar day |
+| Hour record | Steps and derived metrics assigned to the local begin hour |
 | Goal | User-configured daily step target |
-| Snapshot | Dashboard/widget input: today, 7 days, goal, status, last sync |
+| Snapshot | Dashboard/widget input: today, 7 days, hourly buckets, goal, status, last sync |
 
 ## 2. Stakeholders and actors
 
@@ -72,8 +74,9 @@ Out of scope:
 - FR-2.3 The app shall try `content://0@com.miui.providers.steps/item` first, then `content://com.miui.providers.steps/item`.
 - FR-2.4 The app shall treat `_mode` as optional and skip malformed rows; missing required columns shall produce an error state.
 - FR-2.5 Successful samples shall be aggregated and upserted into the Room cache.
-- FR-2.6 Cache rows older than 60 days shall be pruned.
+- FR-2.6 Cache rows older than 60 days shall be pruned for both daily and hourly tables.
 - FR-2.7 Synchronization shall be idempotent.
+- FR-2.8 Successful refreshes shall replace the affected day's hourly rows.
 
 ### FR-3 Aggregation
 
@@ -83,17 +86,21 @@ Out of scope:
 - FR-3.4 Samples shall be grouped by the local date of `_begin_time`.
 - FR-3.5 The 7-day series shall include zero-filled days and be ordered oldest to newest.
 - FR-3.6 Today's totals shall use the current local date.
+- FR-3.7 Hourly buckets shall use the local hour of `_begin_time`; a spanning sample shall not be split.
+- FR-3.8 Each day shall expose 24 zero-filled hourly buckets, and hourly rows shall be pruned with the daily cache.
+- FR-3.9 Distance and calories shall remain estimates because the provider exposes no body, stride, distance, or calorie data.
 
 ### FR-4 Dashboard
 
 - FR-4.1 The app shall show today's step count and goal.
 - FR-4.2 The app shall show a circular progress ring, clamped visually to 100%.
 - FR-4.3 The app shall show distance (km), calories (kcal), and active time.
-- FR-4.4 The app shall show a 7-day bar chart with a goal reference line.
-- FR-4.5 The app shall show a status/footer line with source and last refresh time.
-- FR-4.6 The app shall provide a manual refresh action.
-- FR-4.7 The app shall show a loading indicator during initial sync.
-- FR-4.8 The app shall keep the last successful data visible when a later sync fails.
+- FR-4.4 The app shall show an interactive 7-day bar chart with a goal reference line; tapping a bar shall select that day.
+- FR-4.5 The app shall show an hourly bar chart for the selected day; tapping a bar shall show that hour's steps, distance, and calories.
+- FR-4.6 The app shall show a status/footer line with source and last refresh time.
+- FR-4.7 The app shall provide a single manual refresh action.
+- FR-4.8 The app shall show a loading indicator during initial sync and a fixed-height progress slot during refresh so content does not jump.
+- FR-4.9 The app shall keep the last successful data visible when a later sync fails.
 
 ### FR-5 Goal management
 
@@ -109,12 +116,13 @@ Out of scope:
 - FR-6.2 The app shall provide a 2x1 widget.
 - FR-6.3 Widgets shall show a setup state when data access is unavailable and no cached data exists; otherwise cached values remain visible.
 - FR-6.4 Widgets shall show steps, goal, and a progress bar when data is available; the 4x2 widget also shows percent complete.
-- FR-6.5 The 4x2 widget shall show distance and calories.
+- FR-6.5 Both widgets shall show distance and calories; the 2x1 widget keeps them on a compact secondary row.
 - FR-6.6 Tapping a widget shall open the dashboard.
 - FR-6.7 The 4x2 "Set goal" action shall open the dashboard with the goal dialog visible.
 - FR-6.8 The 4x2 "Details" action shall open the dashboard.
-- FR-6.9 Widgets shall refresh on `APPWIDGET_UPDATE`, after background sync, and after goal changes.
+- FR-6.9 Widgets shall refresh on `APPWIDGET_UPDATE`, resize, provider changes while the app process is alive, after background sync, and after goal changes.
 - FR-6.10 Widgets shall render within RemoteViews restrictions without Compose.
+- FR-6.11 The 2x1 widget shall use a small top/bottom outer margin only, with no additional side margin.
 
 ### FR-7 Background refresh
 
@@ -122,6 +130,7 @@ Out of scope:
 - FR-7.2 The job shall refresh the provider data and update all widget instances.
 - FR-7.3 The job shall not run if a previous instance is still active.
 - FR-7.4 Failure shall not crash the app or erase the cache.
+- FR-7.5 While the app process is alive, a debounced provider `ContentObserver` shall refresh widgets without requiring a foreground service.
 
 ### FR-8 Error handling and privacy
 
@@ -150,10 +159,12 @@ Out of scope:
 4. Removing the activity permission shows the access state; widgets keep cached values or show setup when no cache exists, without a crash.
 5. On a non-Xiaomi emulator, the app shows the provider-unavailable state and does not crash.
 6. Adding either widget from the launcher renders the correct layout and opens the app on tap.
-7. Reboot/next-day behavior: data remains cached and refreshes when the worker or app runs.
-8. `./gradlew :app:testDebugUnitTest` passes the aggregator tests.
-9. No `INTERNET` permission appears in the built manifest.
-10. The app does not read from App Vault's package or provider.
+7. Selecting a day updates the hourly chart; selecting an hour updates the detail line.
+8. Reboot/next-day behavior: data remains cached and refreshes when the worker or app runs.
+9. `./gradlew :app:testDebugUnitTest` passes the aggregator tests.
+10. No `INTERNET` permission appears in the built manifest.
+11. The app does not read from App Vault's package or provider.
+12. Provider changes update widgets within the debounce window while the app process is alive.
 
 ## 7. Future requirements (not implemented)
 
@@ -162,4 +173,5 @@ Out of scope:
 - Per-mode breakdown (rest/walking/running/cycling).
 - Historical range selection beyond 7 days.
 - Locale-aware distance units (mi/ft).
-- ContentObserver-based near-real-time widget updates via a user-enabled foreground service.
+- Optional local body/stride profile to refine distance and calorie estimates; no such data is exposed by the MIUI provider.
+- Out-of-process real-time widget updates via a user-enabled foreground service if Android scheduling limits become unacceptable.

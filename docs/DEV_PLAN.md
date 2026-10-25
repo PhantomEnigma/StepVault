@@ -116,13 +116,15 @@ StepVault/
 | T6 | Repository | Refresh/upsert/snapshot |
 | T7 | ViewModel | Loading/data/error states |
 | T8 | Compose ring + stats | Dashboard hero |
-| T9 | Week chart | 7 bars + goal line |
+| T9 | Week chart | 7 bars + goal line, tap selection |
+| T9b | Hourly chart | 24 bars, tap selection, selected-day binding |
 | T10 | Permission/access card | Grant + retry flow |
 | T11 | Goal dialog | Validation + persistence |
 | T12 | 4x2 widget layout | Setup + active RemoteViews |
-| T13 | 2x1 widget layout | Compact RemoteViews |
-| T14 | Widget rendering/providers | Update + click intents |
+| T13 | 2x1 widget layout | Compact RemoteViews with margins and metrics |
+| T14 | Widget rendering/providers | Update + click intents + resize refresh |
 | T15 | Worker scheduling | 15-minute refresh |
+| T15b | Provider observer | Debounced in-process widget refresh |
 | T16 | Tests/docs | Unit tests + README |
 | T17 | Static verification | No INTERNET/App Vault refs; imports compile logically |
 
@@ -134,6 +136,8 @@ StepVault/
 - `aggregate_zeroFillsMissingDays`
 - `distance_usesPointSixMetersPerStep`
 - `calories_useSpeedBands` (slow, moderate, fast, zero-duration)
+- `aggregateHourly_groupsByBeginHour`
+- `aggregateHourly_zeroFills24Buckets`
 - `duration_clampsNegativeToZero`
 - `progress_clampsAt100`
 - `formatting` (steps grouping, km, kcal) if formatters are pure
@@ -146,10 +150,13 @@ StepVault/
 4. Non-Xiaomi emulator: provider-unavailable card, no crash.
 5. Goal change: dashboard ring/widgets/percent update.
 6. Add 4x2 and 2x1 widgets; test each click target.
-7. Wait for/force WorkManager: widgets refresh.
-8. Cross midnight: today resets; previous day remains in chart.
-9. Airplane mode: no behavioral change (no network dependency).
-10. Reboot: widgets still render cached/last synced data.
+7. Tap week bars and hourly bars; confirm the selected summaries update.
+8. Resize the 2x1 widget; confirm it re-renders and still fits one cell.
+9. Wait for/force WorkManager: widgets refresh.
+10. While the app is open, let the provider change; confirm the debounced widget update.
+11. Cross midnight: today resets; previous day remains in chart.
+12. Airplane mode: no behavioral change (no network dependency).
+13. Reboot: widgets still render cached/last synced data.
 
 ### Static checks
 
@@ -194,5 +201,5 @@ adb shell dumpsys appwidget | grep -A5 stepvault
 ## 8. Risks to schedule
 
 - Xiaomi ROM differences may change provider behavior; allow extra manual test time.
-- Widget refresh cadence is constrained by Android (30 min system minimum); WorkManager's 15 min is also a minimum and subject to Doze.
+- Widget refresh cadence is constrained by Android (30 min system minimum); WorkManager's 15 min is also a minimum and subject to Doze. The in-process observer only helps while the app is alive.
 - No local Android toolchain in the current environment means compilation is deferred to Android Studio/CI.

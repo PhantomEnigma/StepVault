@@ -93,7 +93,7 @@ class StepProviderClient(private val context: Context) {
         private const val COLUMN_STEPS = "_steps"
 
         private val PROJECTION = arrayOf(COLUMN_BEGIN, COLUMN_END, COLUMN_MODE, COLUMN_STEPS)
-        private val CANDIDATE_URIS = listOf(
+        val CANDIDATE_URIS = listOf(
             Uri.parse("content://0@$AUTHORITY/item"),
             Uri.parse("content://$AUTHORITY/item"),
         )

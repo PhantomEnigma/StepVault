@@ -14,6 +14,12 @@
     <string name="active_label">Active</string>
     <string name="this_week">This week</string>
     <string name="week_goal_legend">Goal %1$s</string>
+    <string name="week_tap_hint">Tap a day</string>
+    <string name="week_day_metrics_format">%1$s km · %2$s kcal</string>
+    <string name="steps_count_format">%1$s steps</string>
+    <string name="hourly_title">Hourly steps</string>
+    <string name="hourly_tap_hint">Tap an hour</string>
+    <string name="hourly_detail_format">%1$s · %2$s steps · %3$s km · %4$s kcal</string>
     <string name="set_goal">Set goal</string>
     <string name="goal_dialog_title">Daily step goal</string>
     <string name="goal_dialog_body">Choose a target between 1,000 and 100,000 steps.</string>
@@ -56,4 +62,6 @@
     <string name="widget_2x1_of_format">/ %1$s</string>
     <string name="widget_2x1_setup">Tap to set up</string>
     <string name="widget_2x1_goal_preview">/ 8,000</string>
+    <string name="widget_2x1_distance_preview">0.00 km</string>
+    <string name="widget_2x1_calories_preview">0 kcal</string>
 </resources>

@@ -30,7 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,6 +37,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -53,11 +55,13 @@ import com.stepvault.app.domain.StepStatus
 import com.stepvault.app.ui.components.AccessCard
 import com.stepvault.app.ui.components.ErrorCard
 import com.stepvault.app.ui.components.GoalDialog
+import com.stepvault.app.ui.components.HourlyChart
 import com.stepvault.app.ui.components.StatCard
 import com.stepvault.app.ui.components.StepRing
 import com.stepvault.app.ui.components.WeekChart
 import com.stepvault.app.util.Formatters
 import java.time.LocalDate
+import java.time.LocalTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -203,20 +207,32 @@ private fun Dashboard(
     onAllowAccess: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
+    var selectedEpochDay by rememberSaveable {
+        mutableStateOf(snapshot.today.date.toEpochDay())
+    }
+    val selectedDate = snapshot.week
+        .firstOrNull { it.date.toEpochDay() == selectedEpochDay }
+        ?.date
+        ?: snapshot.today.date
+    val selectedHours = snapshot.hoursByDay[selectedDate].orEmpty()
+    val selectedIsToday = selectedDate == LocalDate.now()
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(contentPadding),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (error != null && snapshot.status != StepStatus.ERROR) {
-            item {
-                ErrorCard(message = error, onRetry = onRefresh)
+        item {
+            Box(modifier = Modifier.fillMaxWidth().height(3.dp)) {
+                if (loading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxSize())
+                }
             }
         }
 
-        if (loading) {
+        if (error != null && snapshot.status != StepStatus.ERROR) {
             item {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                ErrorCard(message = error, onRetry = onRefresh)
             }
         }
 
@@ -309,19 +325,28 @@ private fun Dashboard(
                             style = MaterialTheme.typography.titleMedium,
                         )
                         Spacer(modifier = Modifier.weight(1f))
-                        Text(
-                            text = stringResource(
-                                R.string.week_goal_legend,
-                                Formatters.steps(snapshot.goal),
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = stringResource(
+                                    R.string.week_goal_legend,
+                                    Formatters.steps(snapshot.goal),
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = stringResource(R.string.week_tap_hint),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     WeekChart(
                         week = snapshot.week,
                         goal = snapshot.goal,
+                        selectedDate = selectedDate,
+                        onSelectDate = { date -> selectedEpochDay = date.toEpochDay() },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -329,37 +354,63 @@ private fun Dashboard(
         }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
             ) {
-                OutlinedButton(
-                    onClick = onSetGoal,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Flag,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.hourly_title),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                text = if (selectedIsToday) {
+                                    stringResource(
+                                        R.string.today_header,
+                                        Formatters.shortDate(selectedDate),
+                                    )
+                                } else {
+                                    Formatters.shortDate(selectedDate)
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.hourly_tap_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HourlyChart(
+                        hours = selectedHours,
+                        date = selectedDate,
+                        defaultHour = if (selectedIsToday) LocalTime.now().hour else 12,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(stringResource(R.string.set_goal))
                 }
-                Button(
-                    onClick = onRefresh,
-                    enabled = !loading,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(stringResource(R.string.refresh))
-                }
+            }
+        }
+
+        item {
+            Button(
+                onClick = onSetGoal,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Flag,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.set_goal))
             }
         }
 
