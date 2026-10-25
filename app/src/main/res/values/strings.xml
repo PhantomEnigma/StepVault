@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StepVault</string>
+
+    <string name="steps_title">Steps</string>
+    <string name="refresh">Refresh</string>
+    <string name="loading">Reading step data…</string>
+    <string name="today_header">Today, %1$s</string>
+    <string name="of_goal_format">of %1$s</string>
+    <string name="remaining_format">%1$s to go</string>
+    <string name="goal_reached">Goal reached</string>
+    <string name="distance_label">Distance</string>
+    <string name="calories_label">Calories</string>
+    <string name="active_label">Active</string>
+    <string name="this_week">This week</string>
+    <string name="week_goal_legend">Goal %1$s</string>
+    <string name="set_goal">Set goal</string>
+    <string name="goal_dialog_title">Daily step goal</string>
+    <string name="goal_dialog_body">Choose a target between 1,000 and 100,000 steps.</string>
+    <string name="goal_input_label">Steps</string>
+    <string name="goal_error_range">Enter a number from 1,000 to 100,000</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="source_format">Source: MIUI steps provider</string>
+    <string name="last_sync_format">Updated %1$s</string>
+    <string name="not_synced">Not synced yet</string>
+
+    <string name="access_title">Connect MIUI steps</string>
+    <string name="access_body">StepVault reads your daily totals from the system step provider, the same source App Vault uses. Allow physical activity access to continue.</string>
+    <string name="allow_access">Allow access</string>
+    <string name="provider_missing_title">MIUI step provider not found</string>
+    <string name="provider_missing_body">This device does not expose com.miui.providers.steps. Step data requires a Xiaomi, Redmi, or POCO device running MIUI or HyperOS.</string>
+    <string name="permission_denied_title">Step access is blocked</string>
+    <string name="permission_denied_body">Android or MIUI is blocking the step provider. Grant physical activity permission, then check the MIUI security settings if the problem persists.</string>
+    <string name="open_settings">Open settings</string>
+    <string name="error_title">Could not read steps</string>
+    <string name="retry">Try again</string>
+    <string name="cached_data_notice">Showing last saved data.</string>
+
+    <string name="widget_health_label">Steps 4x2</string>
+    <string name="widget_health_2x1_label">Steps 2x1</string>
+    <string name="widget_description">Daily steps, goal progress, distance, and calories from the MIUI step provider.</string>
+    <string name="widget_steps_title">Steps</string>
+    <string name="widget_setup_title">Connect steps</string>
+    <string name="widget_setup_permission">Tap to allow step access</string>
+    <string name="widget_setup_provider_missing">MIUI step provider unavailable</string>
+    <string name="widget_setup_retry">Tap to retry</string>
+    <string name="widget_setup_button">Set up</string>
+    <string name="widget_cached">cached</string>
+    <string name="widget_set_goal">Set goal</string>
+    <string name="widget_details">Details</string>
+    <string name="widget_goal_format">Goal %1$s</string>
+    <string name="widget_percent_format">%1$d%%</string>
+    <string name="widget_distance_format">%1$s km</string>
+    <string name="widget_calories_format">%1$s kcal</string>
+    <string name="widget_2x1_of_format">/ %1$s</string>
+    <string name="widget_2x1_setup">Tap to set up</string>
+    <string name="widget_2x1_goal_preview">/ 8,000</string>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="app_background">#FF0B0B0F</color>
+    <color name="launcher_background">#FF0B0B0F</color>
+
+    <color name="widget_card">#FF000000</color>
+    <color name="widget_text">#E6FFFFFF</color>
+    <color name="widget_text_secondary">#80FFFFFF</color>
+    <color name="widget_accent">#FFFFB233</color>
+    <color name="widget_accent_deep">#FFFF6E31</color>
+    <color name="widget_track">#4DFF8532</color>
+    <color name="widget_stroke">#19FFFFFF</color>
+    <color name="widget_button">#19FFFFFF</color>
+</resources>
