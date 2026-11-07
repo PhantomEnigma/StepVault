@@ -142,6 +142,39 @@ class StepAggregatorTest {
     }
 
     @Test
+    fun aggregateHourly_assignsMidnightSpanningSampleToBeginDayAndHour() {
+        val begin = today.minusDays(1).atTime(23, 50).atZone(zone)
+        val sample = StepSample(
+            beginTime = begin.toInstant().toEpochMilli(),
+            endTime = begin.plusMinutes(20).toInstant().toEpochMilli(),
+            mode = 2,
+            steps = 100,
+        )
+
+        val previousDay = StepAggregator.aggregateHourly(
+            samples = listOf(sample),
+            zone = zone,
+            date = today.minusDays(1),
+        )
+        val currentDay = StepAggregator.aggregateHourly(
+            samples = listOf(sample),
+            zone = zone,
+            date = today,
+        )
+        val days = StepAggregator.aggregate(
+            samples = listOf(sample),
+            zone = zone,
+            from = today.minusDays(1),
+            to = today,
+        )
+
+        assertEquals(100, previousDay[23].steps)
+        assertEquals(0, currentDay.sumOf { it.steps })
+        assertEquals(100, days[0].steps)
+        assertEquals(0, days[1].steps)
+    }
+
+    @Test
     fun progress_isClampedAtOneHundredPercent() {
         val snapshot = StepSnapshot(
             today = DaySteps(today, 12_000, 7_200.0, 480.0, 3_600L),

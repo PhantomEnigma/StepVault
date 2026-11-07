@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Debug and Release APKs
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build debug and release APKs
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -50,3 +50,26 @@ jobs:
 
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+
+      - name: Report release APK size
+        run: |
+          for apk in app/build/outputs/apk/release/*.apk; do
+            rm -f "release-$(basename "$apk").size"
+            stat -c "%n %s bytes" "$apk" | tee "release-$(basename "$apk").size"
+          done
+
+      - name: Upload release APK and size report
+        uses: actions/upload-artifact@v7
+        with:
+          name: stepvault-release-apk
+          path: |
+            app/build/outputs/apk/release/*.apk
+            release-*.size
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Run release lint
+        run: ./gradlew :app:lintRelease --stacktrace --no-daemon

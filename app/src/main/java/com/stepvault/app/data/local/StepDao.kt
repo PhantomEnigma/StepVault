@@ -9,9 +9,6 @@ interface StepDao {
     @Query("SELECT * FROM daily_steps WHERE epochDay BETWEEN :from AND :to ORDER BY epochDay ASC")
     suspend fun getRange(from: Long, to: Long): List<DailyStepEntity>
 
-    @Query("SELECT * FROM daily_steps ORDER BY epochDay DESC LIMIT 1")
-    suspend fun latest(): DailyStepEntity?
-
     @Upsert
     suspend fun upsertAll(rows: List<DailyStepEntity>)
 

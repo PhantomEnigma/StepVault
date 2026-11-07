@@ -1,7 +1,6 @@
 package com.stepvault.app.domain
 
 import java.time.LocalDate
-import kotlin.math.roundToInt
 
 data class StepSample(
     val beginTime: Long,
@@ -72,7 +71,10 @@ data class StepSnapshot(
         get() = (today.steps.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f)
 
     val progressPercent: Int
-        get() = (progressFraction * 100f).roundToInt()
+        get() {
+            val target = goal.coerceAtLeast(1)
+            return ((today.steps.toLong() * 100L) / target).coerceIn(0L, 100L).toInt()
+        }
 
     val remainingSteps: Int
         get() = (goal - today.steps).coerceAtLeast(0)

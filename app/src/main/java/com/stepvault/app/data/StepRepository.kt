@@ -7,6 +7,7 @@ import com.stepvault.app.data.local.toHourlySteps
 import com.stepvault.app.domain.DaySteps
 import com.stepvault.app.domain.HourlySteps
 import com.stepvault.app.domain.StepAggregator
+import com.stepvault.app.domain.StepSample
 import com.stepvault.app.domain.StepSnapshot
 import com.stepvault.app.domain.StepStatus
 import java.time.Clock
@@ -15,106 +16,113 @@ import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+
+enum class RefreshMode {
+    FULL,
+    TODAY,
+}
 
 class StepRepository(
     private val dao: StepDao,
-    private val goalStore: GoalStore,
-    private val providerClient: StepProviderClient,
+    private val goalStore: GoalDataSource,
+    private val providerClient: StepProviderDataSource,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val clock: Clock = Clock.systemDefaultZone(),
 ) {
-    suspend fun refresh(): StepSnapshot = withContext(Dispatchers.IO) {
-        val today = LocalDate.now(clock)
-        val from = today.minusDays(WINDOW_DAYS - 1)
-        val goal = goalStore.goal.first()
-        val startMillis = from.atStartOfDay(zone).toInstant().toEpochMilli()
-        val endMillis = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    private val refreshMutex = Mutex()
+    private var lastSnapshot: StepSnapshot? = null
+    private var lastSnapshotMode: RefreshMode? = null
+    private var lastRefreshAt: Long = 0L
+    private var lastFullRefreshAt: Long = 0L
+    private var lastPruneEpochDay: Long = Long.MIN_VALUE
 
-        val result = try {
-            providerClient.query(startMillis, endMillis)
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (error: Exception) {
-            StepProviderClient.QueryResult.Error(
-                error.message ?: "Unable to read the step provider",
-            )
-        }
+    suspend fun refresh(
+        mode: RefreshMode = RefreshMode.FULL,
+        force: Boolean = false,
+    ): StepSnapshot = withContext(Dispatchers.IO) {
+        refreshMutex.withLock {
+            val now = clock.millis()
+            val cached = lastSnapshot
+            if (!force && cached != null && isFresh(mode, now)) {
+                return@withLock cached
+            }
 
-        when (result) {
-            is StepProviderClient.QueryResult.Success -> {
-                val now = clock.millis()
-                val providerDays = StepAggregator.aggregate(result.samples, zone, from, today)
-                val cached = dao.getRange(from.toEpochDay(), today.toEpochDay())
-                    .associateBy { it.epochDay }
+            val today = LocalDate.now(clock)
+            val from = when (mode) {
+                RefreshMode.FULL -> today.minusDays(WINDOW_DAYS - 1)
+                RefreshMode.TODAY -> today
+            }
+            val goal = goalStore.goal.first()
+            val startMillis = from.atStartOfDay(zone).toInstant().toEpochMilli()
+            val endMillis = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
 
-                val days = providerDays.map { day ->
-                    val hasProviderData = day.steps > 0 || day.activeSeconds > 0
-                    if (hasProviderData || day.date == today) {
-                        day
-                    } else {
-                        cached[day.date.toEpochDay()]?.toDaySteps() ?: day
-                    }
-                }
-
-                val rows = providerDays.filter { day ->
-                    day.date == today || day.steps > 0 || day.activeSeconds > 0
-                }
-                dao.upsertAll(rows.map { it.toEntity(now) })
-
-                val cacheCutoff = today.minusDays(CACHE_DAYS).toEpochDay()
-                for (day in rows) {
-                    val hourly = StepAggregator.aggregateHourly(result.samples, zone, day.date)
-                    dao.deleteHourlyForDay(day.date.toEpochDay())
-                    dao.upsertHourlyAll(
-                        hourly.filter { it.steps > 0 }
-                            .map { it.toEntity(day.date.toEpochDay(), now) },
-                    )
-                }
-                dao.deleteOlderThan(cacheCutoff)
-                dao.deleteHourlyOlderThan(cacheCutoff)
-
-                StepSnapshot(
-                    today = days.last(),
-                    week = days,
-                    goal = goal,
-                    status = StepStatus.READY,
-                    lastSync = now,
-                    hoursByDay = loadHourly(from, today),
+            val result = try {
+                providerClient.query(startMillis, endMillis)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                StepProviderClient.QueryResult.Error(
+                    error.message ?: "Unable to read the step provider",
                 )
             }
 
-            StepProviderClient.QueryResult.PermissionRequired -> cachedSnapshot(
-                today = today,
-                from = from,
-                goal = goal,
-                status = StepStatus.PERMISSION_REQUIRED,
-                message = null,
-            )
+            val snapshot = when (result) {
+                is StepProviderClient.QueryResult.Success -> successSnapshot(
+                    samples = result.samples,
+                    today = today,
+                    from = from,
+                    goal = goal,
+                    mode = mode,
+                    now = now,
+                )
 
-            StepProviderClient.QueryResult.PermissionDenied -> cachedSnapshot(
-                today = today,
-                from = from,
-                goal = goal,
-                status = StepStatus.PERMISSION_DENIED,
-                message = "MIUI denied access to the step provider",
-            )
+                StepProviderClient.QueryResult.PermissionRequired -> cachedSnapshot(
+                    today = today,
+                    from = from,
+                    goal = goal,
+                    status = StepStatus.PERMISSION_REQUIRED,
+                    message = null,
+                    mode = mode,
+                )
 
-            StepProviderClient.QueryResult.ProviderUnavailable -> cachedSnapshot(
-                today = today,
-                from = from,
-                goal = goal,
-                status = StepStatus.PROVIDER_UNAVAILABLE,
-                message = "MIUI step provider not found",
-            )
+                StepProviderClient.QueryResult.PermissionDenied -> cachedSnapshot(
+                    today = today,
+                    from = from,
+                    goal = goal,
+                    status = StepStatus.PERMISSION_DENIED,
+                    message = "MIUI denied access to the step provider",
+                    mode = mode,
+                )
 
-            is StepProviderClient.QueryResult.Error -> cachedSnapshot(
-                today = today,
-                from = from,
-                goal = goal,
-                status = StepStatus.ERROR,
-                message = result.message,
-            )
+                StepProviderClient.QueryResult.ProviderUnavailable -> cachedSnapshot(
+                    today = today,
+                    from = from,
+                    goal = goal,
+                    status = StepStatus.PROVIDER_UNAVAILABLE,
+                    message = "MIUI step provider not found",
+                    mode = mode,
+                )
+
+                is StepProviderClient.QueryResult.Error -> cachedSnapshot(
+                    today = today,
+                    from = from,
+                    goal = goal,
+                    status = StepStatus.ERROR,
+                    message = result.message,
+                    mode = mode,
+                )
+            }
+
+            lastSnapshot = snapshot
+            lastSnapshotMode = mode
+            lastRefreshAt = now
+            if (mode == RefreshMode.FULL) {
+                lastFullRefreshAt = now
+            }
+            snapshot
         }
     }
 
@@ -127,11 +135,79 @@ class StepRepository(
             !providerClient.activityPermissionGranted() -> StepStatus.PERMISSION_REQUIRED
             else -> StepStatus.READY
         }
-        cachedSnapshot(today, from, goal, status, null)
+        cachedSnapshot(
+            today = today,
+            from = from,
+            goal = goal,
+            status = status,
+            message = null,
+            mode = RefreshMode.FULL,
+        )
     }
 
     suspend fun setGoal(value: Int) {
         goalStore.setGoal(value)
+    }
+
+    private fun isFresh(mode: RefreshMode, now: Long): Boolean = when (mode) {
+        RefreshMode.FULL -> lastSnapshotMode == RefreshMode.FULL &&
+            lastFullRefreshAt > 0L && now - lastFullRefreshAt < SNAPSHOT_TTL_MS
+
+        RefreshMode.TODAY -> lastRefreshAt > 0L && now - lastRefreshAt < SNAPSHOT_TTL_MS
+    }
+
+    private suspend fun successSnapshot(
+        samples: List<StepSample>,
+        today: LocalDate,
+        from: LocalDate,
+        goal: Int,
+        mode: RefreshMode,
+        now: Long,
+    ): StepSnapshot {
+        val providerDays = StepAggregator.aggregate(samples, zone, from, today)
+        val cached = dao.getRange(from.toEpochDay(), today.toEpochDay())
+            .associateBy { it.epochDay }
+
+        val days = providerDays.map { day ->
+            val hasProviderData = day.steps > 0 || day.activeSeconds > 0
+            if (hasProviderData) {
+                day
+            } else {
+                cached[day.date.toEpochDay()]?.toDaySteps() ?: day
+            }
+        }
+
+        val rows = providerDays.filter { day ->
+            day.steps > 0 || day.activeSeconds > 0
+        }
+        if (rows.isNotEmpty()) {
+            dao.upsertAll(rows.map { it.toEntity(now) })
+            for (day in rows) {
+                val hourly = StepAggregator.aggregateHourly(samples, zone, day.date)
+                dao.deleteHourlyForDay(day.date.toEpochDay())
+                dao.upsertHourlyAll(
+                    hourly.filter { it.steps > 0 }
+                        .map { it.toEntity(day.date.toEpochDay(), now) },
+                )
+            }
+        }
+
+        if (mode == RefreshMode.FULL && lastPruneEpochDay != today.toEpochDay()) {
+            val cacheCutoff = today.minusDays(CACHE_DAYS).toEpochDay()
+            dao.deleteOlderThan(cacheCutoff)
+            dao.deleteHourlyOlderThan(cacheCutoff)
+            lastPruneEpochDay = today.toEpochDay()
+        }
+
+        val week = if (mode == RefreshMode.FULL) days else listOf(days.last())
+        return StepSnapshot(
+            today = days.last(),
+            week = week,
+            goal = goal,
+            status = StepStatus.READY,
+            lastSync = now,
+            hoursByDay = loadHourly(from, today),
+        )
     }
 
     private suspend fun cachedSnapshot(
@@ -140,16 +216,21 @@ class StepRepository(
         goal: Int,
         status: StepStatus,
         message: String?,
+        mode: RefreshMode,
     ): StepSnapshot {
         val rows = dao.getRange(from.toEpochDay(), today.toEpochDay())
             .associateBy { it.epochDay }
 
-        val week = buildList {
-            var date = from
-            while (!date.isAfter(today)) {
-                add(rows[date.toEpochDay()]?.toDaySteps() ?: DaySteps.empty(date))
-                date = date.plusDays(1)
+        val week = if (mode == RefreshMode.FULL) {
+            buildList {
+                var date = from
+                while (!date.isAfter(today)) {
+                    add(rows[date.toEpochDay()]?.toDaySteps() ?: DaySteps.empty(date))
+                    date = date.plusDays(1)
+                }
             }
+        } else {
+            listOf(rows[today.toEpochDay()]?.toDaySteps() ?: DaySteps.empty(today))
         }
 
         return StepSnapshot(
@@ -184,5 +265,6 @@ class StepRepository(
     companion object {
         private const val WINDOW_DAYS = 7L
         private const val CACHE_DAYS = 60L
+        private const val SNAPSHOT_TTL_MS = 20_000L
     }
 }

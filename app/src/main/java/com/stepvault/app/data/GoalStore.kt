@@ -17,10 +17,15 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
     name = "stepvault_settings",
 )
 
-class GoalStore(private val context: Context) {
+interface GoalDataSource {
+    val goal: Flow<Int>
+    suspend fun setGoal(value: Int)
+}
+
+class GoalStore(private val context: Context) : GoalDataSource {
     private val goalKey = intPreferencesKey("goal_steps")
 
-    val goal: Flow<Int> = context.settingsDataStore.data
+    override val goal: Flow<Int> = context.settingsDataStore.data
         .catch { error ->
             if (error is IOException) emit(emptyPreferences()) else throw error
         }
@@ -28,7 +33,7 @@ class GoalStore(private val context: Context) {
             (preferences[goalKey] ?: StepAggregator.DEFAULT_GOAL).coerceIn(MIN_GOAL, MAX_GOAL)
         }
 
-    suspend fun setGoal(value: Int) {
+    override suspend fun setGoal(value: Int) {
         val safeValue = value.coerceIn(MIN_GOAL, MAX_GOAL)
         context.settingsDataStore.edit { preferences ->
             preferences[goalKey] = safeValue

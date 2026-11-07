@@ -43,7 +43,7 @@ No phase depends on App Vault being installed. The only external dependency is t
 ### Phase 3 — Dashboard
 
 - `StepViewModel` + factory + `StepUiState`.
-- `StepScreen` with access card, ring, stats, week chart, goal dialog, refresh.
+- `StepScreen` with access card, ring, compact metrics, one `Week | Hourly` chart switch, pull-to-refresh, goal dialog.
 - Runtime permission launcher; permission re-check on resume.
 - Goal dialog intent extra handling from the widget.
 - Verify: fake/real data renders; permission states behave.
@@ -53,21 +53,23 @@ No phase depends on App Vault being installed. The only external dependency is t
 - 4x2 and 2x1 XML layouts and drawables.
 - `WidgetRenderer` with setup/active states, percent, distance/calories.
 - `HealthWidgetProvider` and `HealthWidget2x1Provider` using `goAsync()`.
-- Click intents (root/details/setup/set-goal).
-- `WidgetUpdater`.
+- Click intents (whole card, goal line, setup via app open).
+- `WidgetUpdater` with snapshot signature skipping.
 - Verify: widgets appear in picker; both states render; taps open the right screen.
 
 ### Phase 5 — Background refresh
 
-- `StepSyncWorker` with unique periodic work, 15-minute interval.
-- Schedule from `Application`.
-- Refresh widgets after sync.
+- `StepSyncWorker` with unique periodic work, 30-minute interval, scheduled only while widgets exist.
+- Cancel work when the last widget is removed.
+- Refresh today-only widget data after sync.
 - Verify: run work manually; widgets update; failure preserves cache.
 
 ### Phase 6 — Hardening
 
 - String externalization and content descriptions.
-- Edge cases: midnight, zero steps, huge goal, provider denial, malformed rows.
+- Edge cases: midnight, zero steps, huge goal, provider denial, malformed rows, empty provider refresh preserving cache.
+- Size/battery pass: R8 + resource shrinking, remove extended icons, English-only resources, foreground-only observer.
+- Accessibility: chart custom actions, 48 dp controls, content descriptions.
 - README with build/install/permission instructions.
 - Check no INTERNET permission, no analytics, no App Vault imports.
 - Run unit tests and lint if a toolchain is available.
@@ -116,17 +118,18 @@ StepVault/
 | T6 | Repository | Refresh/upsert/snapshot |
 | T7 | ViewModel | Loading/data/error states |
 | T8 | Compose ring + stats | Dashboard hero |
-| T9 | Week chart | 7 bars + goal line, tap selection |
-| T9b | Hourly chart | 24 bars, tap selection, selected-day binding |
+| T9 | Chart switch + week chart | One visible chart; 7 bars + goal line, tap/accessibility selection |
+| T9b | Hourly chart | 24 bars, tap/accessibility selection, selected-day binding |
 | T10 | Permission/access card | Grant + retry flow |
 | T11 | Goal dialog | Validation + persistence |
-| T12 | 4x2 widget layout | Setup + active RemoteViews |
-| T13 | 2x1 widget layout | Compact RemoteViews with margins and metrics |
-| T14 | Widget rendering/providers | Update + click intents + resize refresh |
-| T15 | Worker scheduling | 15-minute refresh |
-| T15b | Provider observer | Debounced in-process widget refresh |
+| T12 | 4x2 widget layout | Minimal setup + active RemoteViews; goal line opens editor |
+| T13 | 2x1 widget layout | Preserve compact RemoteViews; polish only |
+| T14 | Widget rendering/providers | Signature skip, click intents, resize refresh |
+| T15 | Worker scheduling | 30-minute refresh, widgets-only gating |
+| T15b | Provider observer | Foreground-only, debounced/throttled widget refresh |
 | T16 | Tests/docs | Unit tests + README |
-| T17 | Static verification | No INTERNET/App Vault refs; imports compile logically |
+| T17 | Static verification | No INTERNET/App Vault refs; resource/ID/import checks |
+| T18 | Size/battery pass | R8, shrink resources, English-only, icon cleanup |
 
 ## 5. Test plan
 
@@ -150,7 +153,7 @@ StepVault/
 4. Non-Xiaomi emulator: provider-unavailable card, no crash.
 5. Goal change: dashboard ring/widgets/percent update.
 6. Add 4x2 and 2x1 widgets; test each click target.
-7. Tap week bars and hourly bars; confirm the selected summaries update.
+7. Switch `Week`/`Hourly`; tap bars and confirm the selected summaries update.
 8. Resize the 2x1 widget; confirm it re-renders and still fits one cell.
 9. Wait for/force WorkManager: widgets refresh.
 10. While the app is open, let the provider change; confirm the debounced widget update.
@@ -201,5 +204,5 @@ adb shell dumpsys appwidget | grep -A5 stepvault
 ## 8. Risks to schedule
 
 - Xiaomi ROM differences may change provider behavior; allow extra manual test time.
-- Widget refresh cadence is constrained by Android (30 min system minimum); WorkManager's 15 min is also a minimum and subject to Doze. The in-process observer only helps while the app is alive.
+- Widget refresh cadence is constrained by Android and Doze; the app uses a 30-minute widgets-only WorkManager job, disables system periodic widget updates, and only observes provider changes while in the foreground.
 - No local Android toolchain in the current environment means compilation is deferred to Android Studio/CI.

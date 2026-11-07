@@ -8,7 +8,13 @@ import android.net.Uri
 import androidx.core.content.ContextCompat
 import com.stepvault.app.domain.StepSample
 
-class StepProviderClient(private val context: Context) {
+interface StepProviderDataSource {
+    fun providerAvailable(): Boolean
+    fun activityPermissionGranted(): Boolean
+    fun query(startMillis: Long, endMillis: Long): StepProviderClient.QueryResult
+}
+
+class StepProviderClient(private val context: Context) : StepProviderDataSource {
 
     sealed interface QueryResult {
         data class Success(val samples: List<StepSample>) : QueryResult
@@ -18,16 +24,16 @@ class StepProviderClient(private val context: Context) {
         data class Error(val message: String) : QueryResult
     }
 
-    fun providerAvailable(): Boolean = runCatching {
+    override fun providerAvailable(): Boolean = runCatching {
         context.packageManager.resolveContentProvider(AUTHORITY, 0) != null
     }.getOrDefault(false)
 
-    fun activityPermissionGranted(): Boolean = ContextCompat.checkSelfPermission(
+    override fun activityPermissionGranted(): Boolean = ContextCompat.checkSelfPermission(
         context,
         Manifest.permission.ACTIVITY_RECOGNITION,
     ) == PackageManager.PERMISSION_GRANTED
 
-    fun query(startMillis: Long, endMillis: Long): QueryResult {
+    override fun query(startMillis: Long, endMillis: Long): QueryResult {
         if (!providerAvailable()) return QueryResult.ProviderUnavailable
         if (!activityPermissionGranted()) return QueryResult.PermissionRequired
 

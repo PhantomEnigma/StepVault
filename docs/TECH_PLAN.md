@@ -6,8 +6,8 @@ StepVault is a clean-room Kotlin Android app that reproduces the step-tracking e
 
 - Reads daily step records from the MIUI/HyperOS step provider.
 - Caches them locally for fast dashboard and widget rendering.
-- Shows a circular step goal, distance, calories, active time, and a 7-day chart.
-- Provides a 4x2 and a 2x1 home-screen widget shaped after App Vault's health widgets.
+- Shows a circular step goal, distance, calories, active time, and one chart with `Week` / `Hourly` modes.
+- Provides a minimal 4x2 home-screen widget and the unchanged compact 2x1 widget.
 
 It is an independent project. It does not contain App Vault code, resources, or signing material.
 
@@ -48,8 +48,8 @@ StepRepository ──────── Room cache (`daily_steps`, `hourly_steps
         │
         └──────────────► WidgetUpdater ──► RemoteViews 4x2 + 2x1
 
-ContentObserver (process lifetime) ─┐
-WorkManager (15 min) ───────────────┴─► refresh provider → cache → widgets
+ContentObserver (foreground only) ──┐
+WorkManager (30 min, widgets only) ─┴─► refresh provider → cache → widgets
 ```
 
 ### Design rules
@@ -58,7 +58,7 @@ WorkManager (15 min) ───────────────┴─► refr
 2. **The widget must work from cache:** if the provider query fails, the last cached values remain visible with a stale/error hint.
 3. **Pure aggregation:** `StepAggregator` has no Android dependencies and is unit-testable.
 4. **No network:** the app does not request `INTERNET`.
-5. **No always-on foreground service:** WorkManager and the widget's system update cycle are the persistent sources. An in-process `ContentObserver` adds low-latency widget refresh while the app is alive.
+5. **No always-on foreground service:** a 30-minute WorkManager job (only while widgets exist) is the persistent source. A foreground-only `ContentObserver` adds low-latency widget refresh while the app is open.
 
 ## 4. Technology stack
 
@@ -130,7 +130,7 @@ calories    = steps * kcalPerStep
 
 Rows are grouped by `Instant.ofEpochMilli(beginTime).atZone(zone).toLocalDate()`, matching App Vault's `julianDay` behavior (begin-time day). The last 7 local days are returned, including zero-filled days. Cached daily rows are upserted by `epochDay`, and rows older than 60 days are pruned. A successful query always replaces today's row; cached prior days are preserved when the provider returns no rows for them, so a partial provider range cannot erase history.
 
-Hourly buckets are derived from the same samples. A sample is assigned to the hour of its local `beginTime` on its begin-time date; it is not split across hours. Each day receives 24 zero-filled `HourlySteps` entries. Hourly rows are stored in `hourly_steps` with a composite `(epochDay, hour)` key, replaced per refreshed day, and pruned with the same 60-day cutoff. The dashboard reads seven days of hourly rows at once and the selected day is rendered from that snapshot.
+Hourly buckets are derived from the same samples. A sample is assigned to the hour of its local `beginTime` on its begin-time date; it is not split across hours. Each day receives 24 zero-filled `HourlySteps` entries. Hourly rows are stored in `hourly_steps` with a composite `(epochDay, hour)` key, replaced per refreshed day, and pruned with the same 60-day cutoff. The dashboard reads seven days of hourly rows at once and the selected day is rendered from that snapshot. The repository supports `FULL` (7-day) and `TODAY` refresh modes, coalesces overlapping requests with a mutex and short TTL, and preserves cached prior days/hours when the provider returns no rows.
 
 The provider exposes no body data. Distance uses `steps * 0.6 m`; calories use the speed bands above. Weight, height, gender, or foot length would require an optional user profile and are not read from MIUI.
 
@@ -138,14 +138,14 @@ The provider exposes no body data. Distance uses `steps * 0.6 m`; calories use t
 
 Dark surface inspired by App Vault's black widget cards.
 
-- **Header:** "Steps", current date, refresh icon.
+- **Header:** step title, current/selected date, refresh icon; refresh disabled while loading.
 - **Access card (conditional):** explains MIUI provider and runtime permission; "Allow access" launches `ACTIVITY_RECOGNITION`. On non-Xiaomi devices, explains that the MIUI provider is unavailable.
-- **Hero ring:** 260 dp circular progress, gradient sweep, big formatted step count, subtitle `of 8,000`.
-- **Stats:** distance in km, calories in kcal, active minutes.
-- **Week chart:** 7 rounded bars, dashed goal line, weekday labels, selected-day highlight, and a heavier label for today. Tapping a bar selects that day and shows its date, steps, distance, and calories.
-- **Hourly chart:** 24 bars for the selected day, with tap selection and an hour-range summary. Defaults to the current hour for today or noon for another day.
-- **Bottom action:** full-width "Set goal" dialog (1,000–100,000); source/footer text and last sync time follow.
-- **Refresh feedback:** a fixed-height progress slot avoids layout jumps; only the toolbar refresh action remains.
+- **Hero ring:** auto-sized circular progress, gradient sweep, animated formatted step count, remaining steps, and a tappable goal line.
+- **Stats strip:** compact distance (km), calories (kcal), and active minutes.
+- **One chart at a time:** a `Week | Hourly` segmented switch. The week chart has 7 rounded bars, a dashed goal line, weekday labels, selected-day highlight, and a heavier label for today. The hourly chart has 24 bars for the selected day. Both expose tap/keyboard/accessibility actions and show a detail line.
+- **Goal editing:** tapping the hero goal line opens the goal dialog (1,000–100,000) with preset chips and +/- steppers.
+- **Footer:** source/status and last sync time.
+- **Refresh feedback:** pull-to-refresh plus the toolbar action; cached content remains visible during refresh.
 - **Empty/cached states:** cached data stays visible with a status line when refresh fails.
 
 ## 8. Widget specification
@@ -153,14 +153,14 @@ Dark surface inspired by App Vault's black widget cards.
 ### 4x2 (`widget_health_4x2.xml`)
 
 - Rounded black card (`#FF000000`), 10 dp padding, 18 dp corner radius; primary text `#E6FFFFFF`, secondary text `#80FFFFFF`, and an orange step-progress gradient (`#FFFFB233` → `#FFFF6E31`) over a `#4DFF8532` track.
-- Setup state: 30 dp walk icon, "Connect steps" title, status subtitle, 42 dp "Set up" button.
+- Setup state: 30 dp walk icon, "Connect steps" title, status subtitle; no separate setup button.
 - Active state:
-  - top row: "Steps", `Set goal`, `Details`
+  - top row: "Steps" only
   - large step count
-  - `Goal 8,000` and percent complete
+  - tappable `Goal 8,000` line and percent complete
   - 5 dp rounded progress bar
   - distance and calories line
-- Whole card opens the app; "Set goal" opens the app with the goal dialog; "Details" opens the dashboard.
+- Whole card opens the app; tapping the goal line opens the app with the goal dialog. There are no Details or Set goal buttons.
 - When refresh fails but cache exists, the active values stay visible and the percent slot reads `cached`.
 
 ### 2x1 (`widget_health_2x1.xml`)
@@ -170,15 +170,16 @@ Dark surface inspired by App Vault's black widget cards.
 - Tap opens the dashboard; resize triggers a refresh.
 - With no cache and no access, the title becomes "Tap to set up"; with cache, values remain and the goal slot reads `cached`.
 
-Widget metadata: 4x2 `minWidth 314dp`, `minHeight 115dp`, `targetCellWidth 4`, `targetCellHeight 2`; 2x1 `minWidth 115dp`, `minHeight 64dp`, `targetCellWidth 2`, `targetCellHeight 1`. `updatePeriodMillis` is 30 minutes (Android minimum); WorkManager supplies a 15-minute sync while the app is installed.
+Widget metadata: 4x2 `minWidth 314dp`, `minHeight 115dp`, `targetCellWidth 4`, `targetCellHeight 2`; 2x1 `minWidth 115dp`, `minHeight 64dp`, `targetCellWidth 2`, `targetCellHeight 1`. `updatePeriodMillis` is `0`; a 30-minute WorkManager job supplies updates only while at least one widget exists.
 
 ## 9. Refresh strategy
 
-- Dashboard: refresh on resume, manual refresh, and after permission grant/goal change.
-- Widgets: `onUpdate`, `onAppWidgetOptionsChanged`, and the MIUI update broadcast query and refresh asynchronously with `goAsync()`.
-- Provider observer: `StepVaultApp` registers a process-lifetime `ContentObserver` on both candidate URIs. Notifications are debounced for 1.5 s before `WidgetUpdater.updateAll()` so a burst of provider writes does not cause repeated queries.
-- Background: unique `PeriodicWorkRequest` every 15 minutes. After refresh, all widget IDs are updated.
-- The observer stops when the process stops. No foreground service is used, so out-of-process updates still depend on the 15/30-minute schedules; this is the battery-safe trade-off.
+- Dashboard: `FULL` refresh on resume, manual refresh, and after permission grant/goal change.
+- Widgets: `onUpdate`, `onAppWidgetOptionsChanged`, and the MIUI update broadcast query and refresh asynchronously with `goAsync()` using a `TODAY` refresh.
+- Provider observer: `StepVaultApp` registers a `ContentObserver` on both candidate URIs only while the app is in the foreground and at least one widget exists. Notifications are debounced for 1.5 s and throttled to a 15 s minimum interval before `WidgetUpdater.updateAll()`.
+- Background: unique `PeriodicWorkRequest` every 30 minutes, scheduled only while widgets exist and cancelled when the last widget is removed. After refresh, all widget instances are updated.
+- Overlapping refreshes are coalesced by the repository mutex/TTL; widget renders are skipped when the snapshot signature is unchanged.
+- No foreground service is used, so out-of-process updates still depend on the 30-minute schedule; this is the battery-safe trade-off.
 
 ## 10. Security and privacy
 
@@ -201,14 +202,14 @@ Widget metadata: 4x2 `minWidth 314dp`, `minHeight 115dp`, `targetCellWidth 4`, `
 | No local Android SDK/JDK in this environment | Source is complete; compile/install steps are documented for Android Studio or CI |
 | Provider column names differ across ROMs | Defensive `getColumnIndex` checks and error state |
 | Step count resets at midnight | Query by begin-time day; inject `Clock`/`ZoneId` in aggregator tests |
-| Widget does not update immediately while app is dead | Document platform limits; process-lifetime `ContentObserver` improves updates only while alive |
-| Provider change notifications are noisy | 1.5 s debounce before widget refreshes |
+| Widget does not update immediately while app is dead | Document platform limits; foreground-only `ContentObserver` improves updates only while the app is open |
+| Provider change notifications are noisy | 1.5 s debounce plus 15 s minimum interval before widget refreshes |
 | Distance/calories are only estimates | Fixed fallbacks match App Vault; body-profile refinements are documented as a future option |
 
 ## 12. Build prerequisites
 
 - Android Studio Ladybug or newer, or JDK 17 + Android SDK 35 + Gradle 8.9.
 - Xiaomi/Redmi/POCO device running MIUI/HyperOS with the step provider for real data.
-- `./gradlew :app:assembleDebug` then `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- `./gradlew :app:testDebugUnitTest` then `./gradlew :app:assembleDebug` and install the debug APK, or build `assembleRelease` for the minified/resource-shrunk artifact.
 
 If no Gradle wrapper JAR is present, open the project in Android Studio once to generate it, or run `gradle wrapper --gradle-version 8.9`.

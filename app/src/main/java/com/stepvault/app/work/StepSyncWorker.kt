@@ -28,9 +28,25 @@ class StepSyncWorker(
     companion object {
         private const val UNIQUE_WORK_NAME = "stepvault-step-sync"
         private const val MAX_RETRIES = 3
+        private const val INTERVAL_MINUTES = 30L
 
-        fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<StepSyncWorker>(15, TimeUnit.MINUTES)
+        fun syncIfNeeded(context: Context) {
+            if (WidgetUpdater.hasWidgets(context)) {
+                schedule(context)
+            } else {
+                cancel(context)
+            }
+        }
+
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
+        }
+
+        private fun schedule(context: Context) {
+            val request = PeriodicWorkRequestBuilder<StepSyncWorker>(
+                INTERVAL_MINUTES,
+                TimeUnit.MINUTES,
+            )
                 .setBackoffCriteria(
                     BackoffPolicy.EXPONENTIAL,
                     10,

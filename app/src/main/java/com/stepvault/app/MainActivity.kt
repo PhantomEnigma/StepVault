@@ -19,7 +19,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        captureGoalRequest(intent)
+        if (savedInstanceState == null) {
+            captureGoalRequest(intent)
+        }
 
         setContent {
             StepVaultTheme {

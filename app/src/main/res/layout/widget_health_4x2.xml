@@ -10,7 +10,8 @@
     <LinearLayout
         android:id="@+id/widget_setup"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
         android:orientation="vertical"
         android:visibility="visible">
 
@@ -56,18 +57,6 @@
                     android:textSize="11sp" />
             </LinearLayout>
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/widget_setup_button"
-            android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/widget_button_bg"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="center"
-            android:text="@string/widget_setup_button"
-            android:textColor="@color/widget_text"
-            android:textSize="13sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -95,27 +84,6 @@
                 android:layout_width="0dp"
                 android:layout_height="1dp"
                 android:layout_weight="1" />
-
-            <TextView
-                android:id="@+id/widget_set_goal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:padding="4dp"
-                android:text="@string/widget_set_goal"
-                android:textColor="@color/widget_text"
-                android:textSize="11sp" />
-
-            <TextView
-                android:id="@+id/widget_details"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="2dp"
-                android:fontFamily="sans-serif-medium"
-                android:padding="4dp"
-                android:text="@string/widget_details"
-                android:textColor="@color/widget_text"
-                android:textSize="11sp" />
         </LinearLayout>
 
         <TextView
@@ -123,11 +91,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
+            android:autoSizeMaxTextSize="30sp"
+            android:autoSizeMinTextSize="20sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
             android:fontFamily="sans-serif-medium"
+            android:fontFeatureSettings="tnum"
             android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_text"
-            android:textSize="28sp" />
+            android:textSize="30sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -139,6 +112,9 @@
                 android:id="@+id/widget_goal"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:fontFeatureSettings="tnum"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
                 android:textColor="@color/widget_text_secondary"
                 android:textSize="11sp" />
 
@@ -152,6 +128,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
+                android:fontFeatureSettings="tnum"
                 android:textColor="@color/widget_text_secondary"
                 android:textSize="11sp" />
         </LinearLayout>
@@ -176,6 +153,7 @@
                 android:id="@+id/widget_distance"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:fontFeatureSettings="tnum"
                 android:textColor="@color/widget_text_secondary"
                 android:textSize="11sp" />
 
@@ -188,6 +166,7 @@
                 android:id="@+id/widget_calories"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:fontFeatureSettings="tnum"
                 android:textColor="@color/widget_text_secondary"
                 android:textSize="11sp" />
         </LinearLayout>

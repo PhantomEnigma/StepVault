@@ -43,6 +43,13 @@ object WidgetRenderer {
                     Formatters.steps(snapshot.goal),
                 ),
             )
+            views.setContentDescription(
+                R.id.widget_goal,
+                context.getString(
+                    R.string.widget_goal_edit_description,
+                    Formatters.steps(snapshot.goal),
+                ),
+            )
             views.setTextViewText(
                 R.id.widget_percent,
                 if (ready) {
@@ -67,21 +74,13 @@ object WidgetRenderer {
                 ),
             )
             views.setOnClickPendingIntent(
-                R.id.widget_set_goal,
+                R.id.widget_goal,
                 openApp(context, requestCode = 102, openGoal = true),
-            )
-            views.setOnClickPendingIntent(
-                R.id.widget_details,
-                openApp(context, requestCode = 101, openGoal = false),
             )
         } else {
             views.setTextViewText(
                 R.id.widget_setup_subtitle,
                 context.getString(setupMessage(snapshot.status)),
-            )
-            views.setOnClickPendingIntent(
-                R.id.widget_setup_button,
-                openApp(context, requestCode = 103, openGoal = false),
             )
         }
     }

@@ -6,30 +6,44 @@
     <string name="refresh">Refresh</string>
     <string name="loading">Reading step data…</string>
     <string name="today_header">Today, %1$s</string>
-    <string name="of_goal_format">of %1$s</string>
     <string name="remaining_format">%1$s to go</string>
     <string name="goal_reached">Goal reached</string>
     <string name="distance_label">Distance</string>
     <string name="calories_label">Calories</string>
     <string name="active_label">Active</string>
-    <string name="this_week">This week</string>
+    <string name="distance_value_format">%1$s km</string>
+    <string name="calories_value_format">%1$s kcal</string>
     <string name="week_goal_legend">Goal %1$s</string>
-    <string name="week_tap_hint">Tap a day</string>
     <string name="week_day_metrics_format">%1$s km · %2$s kcal</string>
     <string name="steps_count_format">%1$s steps</string>
-    <string name="hourly_title">Hourly steps</string>
-    <string name="hourly_tap_hint">Tap an hour</string>
     <string name="hourly_detail_format">%1$s · %2$s steps · %3$s km · %4$s kcal</string>
-    <string name="set_goal">Set goal</string>
+
+    <string name="chart_week">Week</string>
+    <string name="chart_hourly">Hourly</string>
+    <string name="chart_week_title">Last 7 days</string>
+    <string name="chart_hourly_title">Hourly steps</string>
+    <string name="no_week_data">No step data for this week</string>
+    <string name="no_hour_data">No hourly data for this day</string>
+    <string name="chart_week_description">Seven-day step chart. Selected %1$s, %2$s steps.</string>
+    <string name="chart_hour_description">Hourly step chart for %1$s. Selected %2$s, %3$s steps.</string>
+    <string name="previous_day">Previous day</string>
+    <string name="next_day">Next day</string>
+    <string name="previous_hour">Previous hour</string>
+    <string name="next_hour">Next hour</string>
+    <string name="goal_edit_description">Edit daily step goal</string>
+    <string name="decrease">Decrease</string>
+    <string name="increase">Increase</string>
+
     <string name="goal_dialog_title">Daily step goal</string>
     <string name="goal_dialog_body">Choose a target between 1,000 and 100,000 steps.</string>
     <string name="goal_input_label">Steps</string>
     <string name="goal_error_range">Enter a number from 1,000 to 100,000</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
-    <string name="source_format">Source: MIUI steps provider</string>
-    <string name="last_sync_format">Updated %1$s</string>
-    <string name="not_synced">Not synced yet</string>
+
+    <string name="footer_format">MIUI steps provider · Updated %1$s</string>
+    <string name="footer_cached_format">Showing last saved data · Updated %1$s</string>
+    <string name="footer_not_synced">MIUI steps provider · Not synced yet</string>
 
     <string name="access_title">Connect MIUI steps</string>
     <string name="access_body">StepVault reads your daily totals from the system step provider, the same source App Vault uses. Allow physical activity access to continue.</string>
@@ -41,7 +55,6 @@
     <string name="open_settings">Open settings</string>
     <string name="error_title">Could not read steps</string>
     <string name="retry">Try again</string>
-    <string name="cached_data_notice">Showing last saved data.</string>
 
     <string name="widget_health_label">Steps 4x2</string>
     <string name="widget_health_2x1_label">Steps 2x1</string>
@@ -51,11 +64,9 @@
     <string name="widget_setup_permission">Tap to allow step access</string>
     <string name="widget_setup_provider_missing">MIUI step provider unavailable</string>
     <string name="widget_setup_retry">Tap to retry</string>
-    <string name="widget_setup_button">Set up</string>
     <string name="widget_cached">cached</string>
-    <string name="widget_set_goal">Set goal</string>
-    <string name="widget_details">Details</string>
     <string name="widget_goal_format">Goal %1$s</string>
+    <string name="widget_goal_edit_description">Goal %1$s. Tap to edit.</string>
     <string name="widget_percent_format">%1$d%%</string>
     <string name="widget_distance_format">%1$s km</string>
     <string name="widget_calories_format">%1$s kcal</string>

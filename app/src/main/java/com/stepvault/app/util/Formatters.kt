@@ -15,8 +15,6 @@ object Formatters {
 
     fun calories(value: Double): String = String.format(Locale.getDefault(), "%.0f", value)
 
-    fun percent(value: Int): String = "$value%"
-
     fun weekday(date: LocalDate): String =
         date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
 

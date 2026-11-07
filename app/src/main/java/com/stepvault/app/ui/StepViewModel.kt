@@ -35,16 +35,16 @@ class StepViewModel(
     val uiState = _uiState.asStateFlow()
     private var loadJob: Job? = null
 
-    fun refresh() {
+    fun refresh(force: Boolean = true) {
         loadJob?.cancel()
-        loadJob = viewModelScope.launch { load() }
+        loadJob = viewModelScope.launch { load(force) }
     }
 
     fun setGoal(value: Int) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             repository.setGoal(value)
-            load()
+            load(force = true)
         }
     }
 
@@ -52,7 +52,7 @@ class StepViewModel(
         _uiState.update { it.copy(showGoalDialog = show) }
     }
 
-    private suspend fun load() {
+    private suspend fun load(force: Boolean) {
         _uiState.update { it.copy(loading = true, error = null) }
         try {
             if (_uiState.value.snapshot == null) {
@@ -61,7 +61,7 @@ class StepViewModel(
                     _uiState.update { it.copy(snapshot = cached) }
                 }
             }
-            val snapshot = repository.refresh()
+            val snapshot = repository.refresh(force = force)
             _uiState.update {
                 it.copy(
                     loading = false,

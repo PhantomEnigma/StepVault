@@ -2,6 +2,8 @@ package com.stepvault.app.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +20,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,56 +47,94 @@ fun WeekChart(
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
     val today = week.lastOrNull()?.date
     val selected = week.firstOrNull { it.date == selectedDate } ?: week.lastOrNull()
+    val selectedIndex = week.indexOfFirst { it.date == selectedDate }
+    val hasData = week.any { it.steps > 0 }
+    val description = stringResource(
+        R.string.chart_week_description,
+        Formatters.shortDate(selected?.date ?: selectedDate),
+        Formatters.steps(selected?.steps ?: 0),
+    )
+    val previousLabel = stringResource(R.string.previous_day)
+    val nextLabel = stringResource(R.string.next_day)
 
     Column(modifier = modifier) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .pointerInput(week) {
-                    if (week.isEmpty()) return@pointerInput
-                    detectTapGestures { position ->
-                        val slot = size.width.toFloat() / week.size
-                        val index = (position.x / slot).toInt().coerceIn(0, week.lastIndex)
-                        onSelectDate(week[index].date)
+        Box(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .semantics {
+                        contentDescription = description
+                        customActions = listOf(
+                            CustomAccessibilityAction(previousLabel) {
+                                if (week.isNotEmpty()) {
+                                    val index = (selectedIndex - 1).coerceIn(0, week.lastIndex)
+                                    onSelectDate(week[index].date)
+                                }
+                                true
+                            },
+                            CustomAccessibilityAction(nextLabel) {
+                                if (week.isNotEmpty()) {
+                                    val index = (selectedIndex + 1).coerceIn(0, week.lastIndex)
+                                    onSelectDate(week[index].date)
+                                }
+                                true
+                            },
+                        )
                     }
-                },
-        ) {
-            if (week.isEmpty()) return@Canvas
-            val usableHeight = size.height - 4.dp.toPx()
-            val slot = size.width / week.size
-            val barWidth = (slot * 0.42f).coerceAtLeast(4.dp.toPx())
-            val maxValue = maxOf(goal, week.maxOfOrNull { it.steps } ?: 0, 1)
-            val goalY = usableHeight * (1f - goal.toFloat() / maxValue)
-            val selectedIndex = week.indexOfFirst { it.date == selectedDate }
+                    .pointerInput(week) {
+                        if (week.isEmpty()) return@pointerInput
+                        detectTapGestures { position ->
+                            val slot = size.width.toFloat() / week.size
+                            val index = (position.x / slot).toInt().coerceIn(0, week.lastIndex)
+                            onSelectDate(week[index].date)
+                        }
+                    },
+            ) {
+                if (week.isEmpty()) return@Canvas
+                val usableHeight = size.height - 4.dp.toPx()
+                val slot = size.width / week.size
+                val barWidth = (slot * 0.42f).coerceAtLeast(4.dp.toPx())
+                val maxValue = maxOf(goal, week.maxOfOrNull { it.steps } ?: 0, 1)
+                val goalY = usableHeight * (1f - goal.toFloat() / maxValue)
 
-            if (selectedIndex >= 0) {
-                drawRoundRect(
-                    color = highlightColor,
-                    topLeft = Offset(slot * selectedIndex, 0f),
-                    size = Size(slot, usableHeight),
-                    cornerRadius = CornerRadius(10.dp.toPx(), 10.dp.toPx()),
+                if (selectedIndex >= 0) {
+                    drawRoundRect(
+                        color = highlightColor,
+                        topLeft = Offset(slot * selectedIndex, 0f),
+                        size = Size(slot, usableHeight),
+                        cornerRadius = CornerRadius(10.dp.toPx(), 10.dp.toPx()),
+                    )
+                }
+
+                drawLine(
+                    color = gridColor,
+                    start = Offset(0f, goalY),
+                    end = Offset(size.width, goalY),
+                    strokeWidth = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f),
                 )
+
+                week.forEachIndexed { index, day ->
+                    if (day.steps <= 0) return@forEachIndexed
+                    val barHeight = (usableHeight * day.steps.toFloat() / maxValue)
+                        .coerceAtLeast(3.dp.toPx())
+                    val left = slot * index + (slot - barWidth) / 2f
+                    drawRoundRect(
+                        color = if (day.date == selectedDate) accent else barColor,
+                        topLeft = Offset(left, usableHeight - barHeight),
+                        size = Size(barWidth, barHeight),
+                        cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f),
+                    )
+                }
             }
 
-            drawLine(
-                color = gridColor,
-                start = Offset(0f, goalY),
-                end = Offset(size.width, goalY),
-                strokeWidth = 1.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f),
-            )
-
-            week.forEachIndexed { index, day ->
-                if (day.steps <= 0) return@forEachIndexed
-                val barHeight = (usableHeight * day.steps.toFloat() / maxValue)
-                    .coerceAtLeast(3.dp.toPx())
-                val left = slot * index + (slot - barWidth) / 2f
-                drawRoundRect(
-                    color = if (day.date == selectedDate) accent else barColor,
-                    topLeft = Offset(left, usableHeight - barHeight),
-                    size = Size(barWidth, barHeight),
-                    cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f),
+            if (!hasData) {
+                Text(
+                    text = stringResource(R.string.no_week_data),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = labelColor,
+                    modifier = Modifier.align(Alignment.Center),
                 )
             }
         }
@@ -117,6 +161,7 @@ fun WeekChart(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(

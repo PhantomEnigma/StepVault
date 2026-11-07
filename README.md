@@ -5,13 +5,16 @@ A clean-room Kotlin recreation of Xiaomi App Vault's step dashboard and health w
 ## Features
 
 - Today's steps, goal ring, distance, calories, and active time.
-- Interactive seven-day bar chart with a goal line; tap a day to inspect it.
-- Hourly step chart for the selected day; tap an hour to see its totals.
-- 4x2 and 2x1 home-screen widgets with setup and active states, including distance and calories on both.
+- One chart at a time: a `Week` / `Hourly` switch, with tap-to-inspect details.
+- Minimal dashboard: hero ring, compact metrics strip, no stacked chart cards.
+- 4x2 widget with a single hero metric, tappable goal, progress, and a compact distance/calories line; 2x1 widget keeps its compact goal, progress, and metrics layout.
 - Runtime `ACTIVITY_RECOGNITION` handling plus Xiaomi's `miui.permission.READ_STEPS`.
 - Local Room cache for daily and hourly data, including offline/stale rendering.
-- 15-minute WorkManager sync, 30-minute system widget refresh, and near-real-time widget updates while the app process is alive.
+- 30-minute WorkManager sync only while widgets exist, plus a foreground-only provider observer for near-real-time widget updates.
+- R8-minified, resource-shrunk release build with no icon pack dependency.
 - No `INTERNET` permission, analytics, ads, or third-party SDKs.
+
+Implementation decisions and the current refinement status are tracked in [`docs/REFINEMENT_PLAN.md`](docs/REFINEMENT_PLAN.md).
 
 ## Data flow
 
@@ -23,7 +26,7 @@ com.miui.providers.steps
   -> Compose dashboard + RemoteViews widgets
 ```
 
-A process-lifetime `ContentObserver` watches the provider and debounces widget refreshes. Android still limits background work to a 15-minute WorkManager minimum and a 30-minute widget update minimum.
+A foreground-only `ContentObserver` watches the provider and debounces widget refreshes. Background work is a 30-minute WorkManager job that only runs while at least one widget exists; the system widget `updatePeriodMillis` is disabled to avoid duplicate wakeups. The UI uses a 7-day refresh, widgets and background work use a today-only refresh, and overlapping requests are coalesced.
 
 The provider query uses `content://0@com.miui.providers.steps/item` and falls back to `content://com.miui.providers.steps/item`, matching App Vault’s user-0 URI first. The app also declares a `<queries>` provider entry for Android 11+ package visibility.
 
@@ -41,8 +44,11 @@ A non-Xiaomi device can build and run the app, but it will show "MIUI step provi
 cd StepVault
 ./gradlew :app:testDebugUnitTest
 ./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+The release build enables R8 and resource shrinking, restricts resources to English, and drops the extended Material icon pack. CI reports the release APK size and runs release lint.
 
 The Gradle wrapper (`gradlew`, `gradlew.bat`, wrapper JAR, and properties) is included, but a JDK is still required. If the script is not executable, run `bash gradlew` or `chmod +x gradlew` first. In this workspace the wrapper is present but no JDK/Android SDK is installed, so build verification could not be run.
 
@@ -69,10 +75,10 @@ adb shell pm grant com.stepvault.app android.permission.ACTIVITY_RECOGNITION
 
 Long-press the home screen, choose Widgets, and add either:
 
-- **Steps 4x2** - step count, goal, progress, distance, calories, Set goal/Details actions.
-- **Steps 2x1** - compact current/goal, progress, distance, and calories with a small top/bottom outer margin.
+- **Steps 4x2** - step count, goal, percent, progress, distance, and calories. The whole card opens the app; tapping the goal line opens the goal editor.
+- **Steps 2x1** - unchanged compact layout: current/goal, progress, distance, and calories with a small top/bottom outer margin.
 
-Widgets show a setup state when there is no cached data and access is unavailable; otherwise they keep the last cached values. They refresh on system updates, resize, provider changes while the app process is alive, every 15 minutes through WorkManager, and after goal changes.
+Widgets show a setup state when there is no cached data and access is unavailable; otherwise they keep the last cached values. They refresh on system updates, resize, provider changes while the app is in the foreground, every 30 minutes through WorkManager while widgets exist, and after goal changes.
 
 ## Project layout
 
@@ -83,7 +89,7 @@ app/src/main/java/com/stepvault/app/
   ui/         Compose dashboard, ring, chart, cards
   widget/     AppWidgetProviders, RemoteViews renderer, updater
   work/       periodic sync worker
-docs/         technical plan, SRS, development plan
+docs/         technical plan, SRS, development plan, refinement plan
 ```
 
 ## Formulas
@@ -102,8 +108,8 @@ The MIUI provider exposes only begin/end time, mode, and steps. It does not expo
 
 - Live data requires the MIUI/HyperOS step provider; Health Connect is not implemented.
 - The widgets are native RemoteViews recreations, not copies of App Vault assets.
-- Android clamps widget `updatePeriodMillis` to 30 minutes; WorkManager also has a 15-minute minimum and is subject to Doze.
-- Provider change notifications can refresh widgets only while the app process is alive. True out-of-process real-time updates would require a foreground service.
+- Background refresh uses a 30-minute WorkManager interval and is subject to Doze; system widget periodic updates are disabled to avoid duplicate wakeups.
+- Provider change notifications can refresh widgets only while the app is in the foreground. True out-of-process real-time updates would require a foreground service.
 - No root, Xposed, system-app privileges, or App Vault package access.
 - The dashboard UI is a dark, clean-room interpretation because App Vault's full health dashboard is not part of its widget resources.
 - Distance and calorie estimates use fixed fallbacks because the provider does not expose body or stride data.

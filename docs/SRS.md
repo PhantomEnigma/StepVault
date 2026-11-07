@@ -15,10 +15,10 @@ In scope:
 - Daily aggregation of steps, distance, calories, and active time.
 - Hourly aggregation derived from provider begin times.
 - Local caching of the last 60 days of daily and hourly data.
-- A Compose dashboard with goal ring, stats, an interactive 7-day chart, and an interactive hourly chart.
+- A Compose dashboard with a goal ring, stats, and one interactive chart with `Week` / `Hourly` modes.
 - A configurable daily step goal (default 8,000).
-- 4x2 and 2x1 widgets with setup and active states.
-- Periodic background refresh plus an in-process provider observer for low-latency widget refresh.
+- A minimal 4x2 widget and the unchanged compact 2x1 widget, with setup and active states.
+- Gated periodic background refresh plus a foreground-only provider observer for low-latency widget refresh.
 
 Out of scope:
 
@@ -95,12 +95,13 @@ Out of scope:
 - FR-4.1 The app shall show today's step count and goal.
 - FR-4.2 The app shall show a circular progress ring, clamped visually to 100%.
 - FR-4.3 The app shall show distance (km), calories (kcal), and active time.
-- FR-4.4 The app shall show an interactive 7-day bar chart with a goal reference line; tapping a bar shall select that day.
-- FR-4.5 The app shall show an hourly bar chart for the selected day; tapping a bar shall show that hour's steps, distance, and calories.
-- FR-4.6 The app shall show a status/footer line with source and last refresh time.
-- FR-4.7 The app shall provide a single manual refresh action.
-- FR-4.8 The app shall show a loading indicator during initial sync and a fixed-height progress slot during refresh so content does not jump.
-- FR-4.9 The app shall keep the last successful data visible when a later sync fails.
+- FR-4.4 The app shall show one chart at a time with a `Week` / `Hourly` switch.
+- FR-4.5 The week chart shall show an interactive 7-day bar chart with a goal reference line; tapping a bar shall select that day.
+- FR-4.6 The hourly chart shall show the selected day's hourly steps; tapping a bar shall show that hour's steps, distance, and calories.
+- FR-4.7 The app shall show a status/footer line with source and last refresh time.
+- FR-4.8 The app shall provide a single manual refresh action plus pull-to-refresh.
+- FR-4.9 The app shall show a loading indicator during initial sync and keep existing content visible during refresh.
+- FR-4.10 The app shall keep the last successful data visible when a later sync fails.
 
 ### FR-5 Goal management
 
@@ -108,7 +109,7 @@ Out of scope:
 - FR-5.2 The user shall be able to set a goal between 1,000 and 100,000 inclusive.
 - FR-5.3 Invalid/non-numeric input shall be rejected without changing the goal.
 - FR-5.4 The goal shall persist across restarts and be used by widgets.
-- FR-5.5 The goal shall be editable from the dashboard and from the 4x2 widget action.
+- FR-5.5 The goal shall be editable from the dashboard and by tapping the goal line on the 4x2 widget.
 
 ### FR-6 Widgets
 
@@ -118,19 +119,22 @@ Out of scope:
 - FR-6.4 Widgets shall show steps, goal, and a progress bar when data is available; the 4x2 widget also shows percent complete.
 - FR-6.5 Both widgets shall show distance and calories; the 2x1 widget keeps them on a compact secondary row.
 - FR-6.6 Tapping a widget shall open the dashboard.
-- FR-6.7 The 4x2 "Set goal" action shall open the dashboard with the goal dialog visible.
-- FR-6.8 The 4x2 "Details" action shall open the dashboard.
-- FR-6.9 Widgets shall refresh on `APPWIDGET_UPDATE`, resize, provider changes while the app process is alive, after background sync, and after goal changes.
-- FR-6.10 Widgets shall render within RemoteViews restrictions without Compose.
-- FR-6.11 The 2x1 widget shall use a small top/bottom outer margin only, with no additional side margin.
+- FR-6.7 Tapping the 4x2 goal line shall open the dashboard with the goal dialog visible.
+- FR-6.8 The 4x2 widget shall not show separate Details or Set goal buttons.
+- FR-6.9 The 2x1 widget shall keep its existing compact structure with only minor tnum/background polish.
+- FR-6.10 Widgets shall refresh on `APPWIDGET_UPDATE`, resize, provider changes while the app is in the foreground, after background sync, and after goal changes.
+- FR-6.11 Widgets shall render within RemoteViews restrictions without Compose.
+- FR-6.12 The 2x1 widget shall use a small top/bottom outer margin only, with no additional side margin.
 
 ### FR-7 Background refresh
 
-- FR-7.1 The app shall enqueue a unique periodic WorkManager job every 15 minutes.
-- FR-7.2 The job shall refresh the provider data and update all widget instances.
+- FR-7.1 The app shall enqueue a unique periodic WorkManager job every 30 minutes only while at least one widget exists.
+- FR-7.2 The job shall refresh today's provider data and update all widget instances.
 - FR-7.3 The job shall not run if a previous instance is still active.
 - FR-7.4 Failure shall not crash the app or erase the cache.
-- FR-7.5 While the app process is alive, a debounced provider `ContentObserver` shall refresh widgets without requiring a foreground service.
+- FR-7.5 While the app is in the foreground, a debounced provider `ContentObserver` shall refresh widgets without requiring a foreground service.
+- FR-7.6 The system widget `updatePeriodMillis` shall be disabled to avoid duplicate wakeups.
+- FR-7.7 The repository shall coalesce overlapping refreshes and skip redundant widget renders using a snapshot signature.
 
 ### FR-8 Error handling and privacy
 
@@ -150,6 +154,8 @@ Out of scope:
 - **NFR-6 Accessibility:** content descriptions for icons, 48 dp touch targets for primary app controls, readable contrast, and full-card widget taps.
 - **NFR-7 Privacy:** no network permission; no identifying data collected.
 - **NFR-8 Localization:** English strings externalized in `strings.xml`; widget text uses resources where practical.
+- **NFR-9 Size:** release builds shall enable R8 and resource shrinking, use only English resources, and avoid the extended Material icon pack.
+- **NFR-10 Battery:** background refresh shall run at most every 30 minutes and only when widgets exist; the app shall avoid process-lifetime observers and duplicate system/widget wakeups.
 
 ## 6. Acceptance criteria
 
@@ -159,12 +165,12 @@ Out of scope:
 4. Removing the activity permission shows the access state; widgets keep cached values or show setup when no cache exists, without a crash.
 5. On a non-Xiaomi emulator, the app shows the provider-unavailable state and does not crash.
 6. Adding either widget from the launcher renders the correct layout and opens the app on tap.
-7. Selecting a day updates the hourly chart; selecting an hour updates the detail line.
+7. Switching to `Hourly` shows the selected day's hourly chart; selecting a day updates it, and selecting an hour updates the detail line.
 8. Reboot/next-day behavior: data remains cached and refreshes when the worker or app runs.
-9. `./gradlew :app:testDebugUnitTest` passes the aggregator tests.
+9. `./gradlew :app:testDebugUnitTest` passes the aggregator, model, and repository tests.
 10. No `INTERNET` permission appears in the built manifest.
 11. The app does not read from App Vault's package or provider.
-12. Provider changes update widgets within the debounce window while the app process is alive.
+12. Provider changes update widgets within the debounce window while the app is in the foreground.
 
 ## 7. Future requirements (not implemented)
 
