@@ -35,6 +35,10 @@ class StepViewModel(
     val uiState = _uiState.asStateFlow()
     private var loadJob: Job? = null
 
+    fun onVisible() {
+        refresh(force = false)
+    }
+
     fun refresh(force: Boolean = true) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch { load(force) }
@@ -56,12 +60,12 @@ class StepViewModel(
         _uiState.update { it.copy(loading = true, error = null) }
         try {
             if (_uiState.value.snapshot == null) {
-                val cached = repository.loadSnapshot()
+                val cached = repository.loadToday()
                 if (cached.lastSync != null) {
                     _uiState.update { it.copy(snapshot = cached) }
                 }
             }
-            val snapshot = repository.refresh(force = force)
+            val snapshot = repository.refreshToday(force = force)
             _uiState.update {
                 it.copy(
                     loading = false,

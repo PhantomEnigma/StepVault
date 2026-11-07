@@ -15,7 +15,7 @@ In scope:
 - Daily aggregation of steps, distance, calories, and active time.
 - Hourly aggregation derived from provider begin times.
 - Local caching of the last 60 days of daily and hourly data.
-- A Compose dashboard with a goal ring, stats, and one interactive chart with `Week` / `Hourly` modes.
+- A Compose app with `Today` and `History` destinations: Today has a goal ring, stats, and one hourly chart; History has a 60-day summary, weekly totals, a selected-week day list, and an hourly day-detail sheet.
 - A configurable daily step goal (default 8,000).
 - A minimal 4x2 widget and the unchanged compact 2x1 widget, with setup and active states.
 - Gated periodic background refresh plus a foreground-only provider observer for low-latency widget refresh.
@@ -38,7 +38,8 @@ Out of scope:
 | Day record | Aggregated totals for one local calendar day |
 | Hour record | Steps and derived metrics assigned to the local begin hour |
 | Goal | User-configured daily step target |
-| Snapshot | Dashboard/widget input: today, 7 days, hourly buckets, goal, status, last sync |
+| Snapshot | Today/widget input: today's totals, 24 hourly buckets, goal, status, last sync |
+| History snapshot | 60 zero-filled days, ISO-week summaries, goal, status, last sync |
 
 ## 2. Stakeholders and actors
 
@@ -69,7 +70,7 @@ Out of scope:
 
 ### FR-2 Step synchronization
 
-- FR-2.1 The app shall query the provider for records from the start of the local day 6 days ago through now.
+- FR-2.1 The Today path shall query the provider for the current local day only. The History path shall query the 60-day window from the start of the local day 59 days ago through tomorrow's start of day.
 - FR-2.2 The query projection shall be limited to `_begin_time`, `_end_time`, `_mode`, `_steps`.
 - FR-2.3 The app shall try `content://0@com.miui.providers.steps/item` first, then `content://com.miui.providers.steps/item`.
 - FR-2.4 The app shall treat `_mode` as optional and skip malformed rows; missing required columns shall produce an error state.
@@ -84,7 +85,7 @@ Out of scope:
 - FR-3.2 Calories shall use speed-based factors: `<5 km/h: 0.04`, `5–10 km/h: 0.06`, `>10 km/h: 0.1` kcal per step.
 - FR-3.3 Active time shall be the sum of `(endTime - beginTime)` in seconds, clamped at zero per sample.
 - FR-3.4 Samples shall be grouped by the local date of `_begin_time`.
-- FR-3.5 The 7-day series shall include zero-filled days and be ordered oldest to newest.
+- FR-3.5 The history series shall include zero-filled days, be ordered oldest to newest for aggregation, and be grouped into ISO weeks (Monday through Sunday); the current week ends today.
 - FR-3.6 Today's totals shall use the current local date.
 - FR-3.7 Hourly buckets shall use the local hour of `_begin_time`; a spanning sample shall not be split.
 - FR-3.8 Each day shall expose 24 zero-filled hourly buckets, and hourly rows shall be pruned with the daily cache.
@@ -95,13 +96,19 @@ Out of scope:
 - FR-4.1 The app shall show today's step count and goal.
 - FR-4.2 The app shall show a circular progress ring, clamped visually to 100%.
 - FR-4.3 The app shall show distance (km), calories (kcal), and active time.
-- FR-4.4 The app shall show one chart at a time with a `Week` / `Hourly` switch.
-- FR-4.5 The week chart shall show an interactive 7-day bar chart with a goal reference line; tapping a bar shall select that day.
+- FR-4.4 The app shall expose two top-level destinations, `Today` and `History`, through a persistent slim bottom bar.
+- FR-4.5 Today shall show only today's hourly chart; there shall be no week chart or Week/Hourly switch on Today.
 - FR-4.6 The hourly chart shall show the selected day's hourly steps; tapping a bar shall show that hour's steps, distance, and calories.
-- FR-4.7 The app shall show a status/footer line with source and last refresh time.
-- FR-4.8 The app shall provide a single manual refresh action plus pull-to-refresh.
-- FR-4.9 The app shall show a loading indicator during initial sync and keep existing content visible during refresh.
-- FR-4.10 The app shall keep the last successful data visible when a later sync fails.
+- FR-4.7 History shall show a 60-day total, daily average, and best day.
+- FR-4.8 History shall show interactive weekly totals bars; selecting a week shall update the day list below.
+- FR-4.9 History shall list the selected week's days newest-first with steps, distance, and goal progress; empty days shall show zero.
+- FR-4.10 Tapping a history day shall open a bottom sheet with that day's metrics and hourly chart; hourly rows shall be loaded lazily.
+- FR-4.11 The History tab shall refresh on open when its cache is older than five minutes, and support manual refresh.
+- FR-4.12 Back from History shall return to Today; back with a day sheet open shall close the sheet first.
+- FR-4.13 The app shall show a status/footer line with source and last refresh time.
+- FR-4.14 The app shall provide a single manual refresh action on each destination plus pull-to-refresh.
+- FR-4.15 The app shall show a loading indicator during initial sync and keep existing content visible during refresh.
+- FR-4.16 The app shall keep the last successful data visible when a later sync fails.
 
 ### FR-5 Goal management
 
@@ -118,7 +125,7 @@ Out of scope:
 - FR-6.3 Widgets shall show a setup state when data access is unavailable and no cached data exists; otherwise cached values remain visible.
 - FR-6.4 Widgets shall show steps, goal, and a progress bar when data is available; the 4x2 widget also shows percent complete.
 - FR-6.5 Both widgets shall show distance and calories; the 2x1 widget keeps them on a compact secondary row.
-- FR-6.6 Tapping a widget shall open the dashboard.
+- FR-6.6 Tapping a widget shall open the Today destination.
 - FR-6.7 Tapping the 4x2 goal line shall open the dashboard with the goal dialog visible.
 - FR-6.8 The 4x2 widget shall not show separate Details or Set goal buttons.
 - FR-6.9 The 2x1 widget shall keep its existing compact structure with only minor tnum/background polish.
@@ -159,13 +166,13 @@ Out of scope:
 
 ## 6. Acceptance criteria
 
-1. On a Xiaomi device with the step provider, after granting permission, the dashboard shows today's steps matching the system step counter within one refresh.
+1. On a Xiaomi device with the step provider, after granting permission, the Today screen shows today's steps matching the system step counter within one refresh.
 2. Distance approximately equals `steps * 0.6 / 1000` km when no provider distance is used.
 3. Setting the goal to 10,000 updates the ring, remaining steps, and both widgets.
 4. Removing the activity permission shows the access state; widgets keep cached values or show setup when no cache exists, without a crash.
 5. On a non-Xiaomi emulator, the app shows the provider-unavailable state and does not crash.
 6. Adding either widget from the launcher renders the correct layout and opens the app on tap.
-7. Switching to `Hourly` shows the selected day's hourly chart; selecting a day updates it, and selecting an hour updates the detail line.
+7. Today shows only the hourly chart. History shows 60 days grouped by ISO week; selecting a week updates the day list, a day row opens the hourly sheet, and back closes the sheet before returning to Today.
 8. Reboot/next-day behavior: data remains cached and refreshes when the worker or app runs.
 9. `./gradlew :app:testDebugUnitTest` passes the aggregator, model, and repository tests.
 10. No `INTERNET` permission appears in the built manifest.

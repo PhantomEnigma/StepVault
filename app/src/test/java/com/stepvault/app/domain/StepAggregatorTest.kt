@@ -178,7 +178,6 @@ class StepAggregatorTest {
     fun progress_isClampedAtOneHundredPercent() {
         val snapshot = StepSnapshot(
             today = DaySteps(today, 12_000, 7_200.0, 480.0, 3_600L),
-            week = emptyList(),
             goal = 8_000,
             status = StepStatus.READY,
         )

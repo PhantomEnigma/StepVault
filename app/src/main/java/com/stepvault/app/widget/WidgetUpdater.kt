@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import com.stepvault.app.R
 import com.stepvault.app.StepVaultApp
-import com.stepvault.app.data.RefreshMode
 import com.stepvault.app.domain.StepSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,7 +37,7 @@ object WidgetUpdater {
         }
         if (idsByProvider.all { it.third.isEmpty() }) return@withContext
 
-        val resolved = snapshot ?: app.container.repository.refresh(RefreshMode.TODAY)
+        val resolved = snapshot ?: app.container.repository.refreshToday()
         val signature = signatureOf(resolved)
         if (!force && signature == lastSignature) return@withContext
 

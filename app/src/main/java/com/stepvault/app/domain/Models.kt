@@ -60,12 +60,11 @@ enum class StepStatus {
 
 data class StepSnapshot(
     val today: DaySteps,
-    val week: List<DaySteps>,
     val goal: Int,
     val status: StepStatus,
     val message: String? = null,
     val lastSync: Long? = null,
-    val hoursByDay: Map<LocalDate, List<HourlySteps>> = emptyMap(),
+    val hours: List<HourlySteps> = emptyList(),
 ) {
     val progressFraction: Float
         get() = (today.steps.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f)

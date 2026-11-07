@@ -32,7 +32,8 @@ No phase depends on App Vault being installed. The only external dependency is t
 ### Phase 2 — Data spine
 
 - `StepSample`, `DaySteps`, `StepSnapshot`, `StepStatus` models.
-- `StepAggregator` with distance/calorie/duration logic and zero-filled 7-day series.
+- `StepAggregator` with distance/calorie/duration logic and zero-filled daily/hourly series.
+- `HistoryAggregator` with ISO-week grouping, totals, averages, and goal-day counts.
 - `StepProviderClient` with availability, permission, dual URI, defensive cursor parsing, failure mapping.
 - Room entity/DAO/database for `daily_steps`.
 - `GoalStore` using DataStore.
@@ -40,13 +41,15 @@ No phase depends on App Vault being installed. The only external dependency is t
 - Unit tests for aggregation.
 - Verify: aggregator tests pass; repository returns `PROVIDER_UNAVAILABLE` on non-Xiaomi.
 
-### Phase 3 — Dashboard
+### Phase 3 — Today and History
 
 - `StepViewModel` + factory + `StepUiState`.
-- `StepScreen` with access card, ring, compact metrics, one `Week | Hourly` chart switch, pull-to-refresh, goal dialog.
-- Runtime permission launcher; permission re-check on resume.
+- `StepScreen` with access card, ring, compact metrics, one hourly chart, pull-to-refresh, goal dialog.
+- `HistoryViewModel`, `HistoryUiState`, summary card, weekly totals, selected-week day list, and lazy day-detail sheet.
+- `StepVaultRoot` with slim bottom tabs and back handling.
+- Runtime permission launcher; permission re-check on tab resume.
 - Goal dialog intent extra handling from the widget.
-- Verify: fake/real data renders; permission states behave.
+- Verify: fake/real data renders; permission states behave; week selection and day sheet work.
 
 ### Phase 4 — Widgets
 
@@ -88,11 +91,15 @@ StepVault/
 │   │   └── local/                   Room entity, DAO, database
 │   ├── domain/
 │   │   ├── Models.kt                StepSample, DaySteps, StepSnapshot, StepStatus
-│   │   └── StepAggregator.kt        pure formulas/grouping
+│   │   ├── HistoryModels.kt         WeekSummary, HistorySnapshot, DayHours
+│   │   ├── StepAggregator.kt        pure formulas/grouping
+│   │   └── HistoryAggregator.kt     ISO-week grouping and summaries
 │   ├── ui/
-│   │   ├── StepScreen.kt            dashboard composable
-│   │   ├── StepViewModel.kt         StateFlow + actions
-│   │   ├── components/              ring, chart, cards, permission card
+│   │   ├── StepVaultRoot.kt         bottom tabs + back handling
+│   │   ├── StepScreen.kt            Today composable
+│   │   ├── StepViewModel.kt         Today StateFlow + actions
+│   │   ├── history/                 History screen, state, ViewModel, day sheet
+│   │   ├── components/              ring, charts, cards, weekly overview, day row
 │   │   └── theme/                   colors, typography, theme
 │   ├── widget/
 │   │   ├── HealthWidgetProvider.kt  4x2 receiver
@@ -113,13 +120,14 @@ StepVault/
 | T1 | Gradle/manifest/theme skeleton | App builds (with SDK) |
 | T2 | Domain models + aggregator | Pure, tested formulas |
 | T3 | Provider client | Queries both URIs, maps failures |
-| T4 | Room cache + DAO | 60-day cache, 7-day reads |
+| T4 | Room cache + DAO | 60-day cache, today and 60-day reads |
 | T5 | GoalStore | Persistent goal |
 | T6 | Repository | Refresh/upsert/snapshot |
 | T7 | ViewModel | Loading/data/error states |
 | T8 | Compose ring + stats | Dashboard hero |
-| T9 | Chart switch + week chart | One visible chart; 7 bars + goal line, tap/accessibility selection |
-| T9b | Hourly chart | 24 bars, tap/accessibility selection, selected-day binding |
+| T9 | Today hourly chart | 24 bars, tap/accessibility selection, no week chart |
+| T9b | History overview | 60-day summary, weekly totals bars, selected-week day list |
+| T9c | Day-detail sheet | Lazy hourly load, metrics, retry, back dismissal |
 | T10 | Permission/access card | Grant + retry flow |
 | T11 | Goal dialog | Validation + persistence |
 | T12 | 4x2 widget layout | Minimal setup + active RemoteViews; goal line opens editor |
@@ -143,6 +151,12 @@ StepVault/
 - `aggregateHourly_zeroFills24Buckets`
 - `duration_clampsNegativeToZero`
 - `progress_clampsAt100`
+- `historyWeeks_groupIsoWeeks`
+- `historyWeeks_currentWeekEndsToday`
+- `historyWeeks_zeroFillAndGoalDays`
+- `historyWeeks_crossYearBoundary`
+- `repository_todayAndHistoryIndependentTtl`
+- `loadDayHours_cacheFirstThenQuery`
 - `formatting` (steps grouping, km, kcal) if formatters are pure
 
 ### Manual tests (device)
@@ -153,11 +167,11 @@ StepVault/
 4. Non-Xiaomi emulator: provider-unavailable card, no crash.
 5. Goal change: dashboard ring/widgets/percent update.
 6. Add 4x2 and 2x1 widgets; test each click target.
-7. Switch `Week`/`Hourly`; tap bars and confirm the selected summaries update.
+7. Confirm Today shows only the hourly chart; on History, select weeks and open a day sheet.
 8. Resize the 2x1 widget; confirm it re-renders and still fits one cell.
 9. Wait for/force WorkManager: widgets refresh.
 10. While the app is open, let the provider change; confirm the debounced widget update.
-11. Cross midnight: today resets; previous day remains in chart.
+11. Cross midnight: Today resets; the previous day remains in History and the current week updates.
 12. Airplane mode: no behavioral change (no network dependency).
 13. Reboot: widgets still render cached/last synced data.
 

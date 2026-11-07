@@ -5,11 +5,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.stepvault.app.ui.StepScreen
+import com.stepvault.app.ui.StepVaultRoot
 import com.stepvault.app.ui.StepViewModel
+import com.stepvault.app.ui.history.HistoryViewModel
 import com.stepvault.app.ui.theme.StepVaultTheme
 import com.stepvault.app.widget.WidgetRenderer
 
@@ -28,11 +28,14 @@ class MainActivity : ComponentActivity() {
                 val stepViewModel: StepViewModel = viewModel(
                     factory = StepViewModel.factory(application),
                 )
-                val request = goalDialogRequest.intValue
-                LaunchedEffect(request) {
-                    if (request > 0) stepViewModel.showGoalDialog(true)
-                }
-                StepScreen(viewModel = stepViewModel)
+                val historyViewModel: HistoryViewModel = viewModel(
+                    factory = HistoryViewModel.factory(application),
+                )
+                StepVaultRoot(
+                    todayViewModel = stepViewModel,
+                    historyViewModel = historyViewModel,
+                    openGoalRequest = goalDialogRequest.intValue,
+                )
             }
         }
     }

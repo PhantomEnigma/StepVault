@@ -21,6 +21,12 @@ object Formatters {
     fun shortDate(date: LocalDate): String =
         date.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault()))
 
+    fun dayMonth(date: LocalDate): String =
+        date.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
+
+    fun fullDate(date: LocalDate): String =
+        date.format(DateTimeFormatter.ofPattern("EEEE, d MMM", Locale.getDefault()))
+
     fun time(timestamp: Long?): String? = timestamp?.let {
         DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
             .withZone(ZoneId.systemDefault())

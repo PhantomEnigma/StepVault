@@ -10,7 +10,6 @@ class ModelsTest {
 
     private fun snapshot(steps: Int, goal: Int = 8_000): StepSnapshot = StepSnapshot(
         today = DaySteps(date, steps, steps * 0.6, steps * 0.04, 0L),
-        week = emptyList(),
         goal = goal,
         status = StepStatus.READY,
     )

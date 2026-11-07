@@ -5,8 +5,9 @@
 StepVault is a clean-room Kotlin Android app that reproduces the step-tracking experience of Xiaomi App Vault:
 
 - Reads daily step records from the MIUI/HyperOS step provider.
-- Caches them locally for fast dashboard and widget rendering.
-- Shows a circular step goal, distance, calories, active time, and one chart with `Week` / `Hourly` modes.
+- Caches them locally for fast Today, History, and widget rendering.
+- Shows a circular step goal, distance, calories, active time, and a single hourly chart on Today.
+- Shows a 60-day History destination with ISO-week summaries, weekly totals, a day list, and an hourly day-detail sheet.
 - Provides a minimal 4x2 home-screen widget and the unchanged compact 2x1 widget.
 
 It is an independent project. It does not contain App Vault code, resources, or signing material.
@@ -41,10 +42,13 @@ StepProviderClient ── permission/availability detection
 StepAggregator (pure Kotlin: group by local day/hour, distance/calories/duration)
         │
         ▼
+HistoryAggregator (pure Kotlin: ISO-week grouping, totals, averages, goal days)
+        │
+        ▼
 StepRepository ──────── Room cache (`daily_steps`, `hourly_steps`)
         │                DataStore (`goal_steps`)
         │
-        ├──────────────► ViewModel / StateFlow ──► Compose dashboard
+        ├──────────────► Today/History ViewModels ──► Compose Today + History
         │
         └──────────────► WidgetUpdater ──► RemoteViews 4x2 + 2x1
 
@@ -128,9 +132,11 @@ kcalPerStep = speedKmh > 10 ? 0.10 : speedKmh >= 5 ? 0.06 : 0.04
 calories    = steps * kcalPerStep
 ```
 
-Rows are grouped by `Instant.ofEpochMilli(beginTime).atZone(zone).toLocalDate()`, matching App Vault's `julianDay` behavior (begin-time day). The last 7 local days are returned, including zero-filled days. Cached daily rows are upserted by `epochDay`, and rows older than 60 days are pruned. A successful query always replaces today's row; cached prior days are preserved when the provider returns no rows for them, so a partial provider range cannot erase history.
+Rows are grouped by `Instant.ofEpochMilli(beginTime).atZone(zone).toLocalDate()`, matching App Vault's `julianDay` behavior (begin-time day). The Today path returns today only; the History path returns a zero-filled 60-day window. Cached daily rows are upserted by `epochDay`, and rows older than 60 days are pruned once per day on a History refresh. Cached days are preserved when the provider returns no rows for them, so a partial provider range cannot erase history.
 
-Hourly buckets are derived from the same samples. A sample is assigned to the hour of its local `beginTime` on its begin-time date; it is not split across hours. Each day receives 24 zero-filled `HourlySteps` entries. Hourly rows are stored in `hourly_steps` with a composite `(epochDay, hour)` key, replaced per refreshed day, and pruned with the same 60-day cutoff. The dashboard reads seven days of hourly rows at once and the selected day is rendered from that snapshot. The repository supports `FULL` (7-day) and `TODAY` refresh modes, coalesces overlapping requests with a mutex and short TTL, and preserves cached prior days/hours when the provider returns no rows.
+Hourly buckets are derived from the same samples. A sample is assigned to the hour of its local `beginTime` on its begin-time date; it is not split across hours. Each day receives 24 zero-filled `HourlySteps` entries. Hourly rows are stored in `hourly_steps` with a composite `(epochDay, hour)` key, replaced per refreshed day, and pruned with the same 60-day cutoff. The Today path loads today's hourly rows; History lazily loads hourly rows for one selected day. The repository exposes `refreshToday`/`loadToday`, `refreshHistory`/`loadHistory`, and `loadDayHours`, serializes provider queries with a mutex, uses a 20 s Today TTL and a 5-minute History TTL, and preserves cached days/hours when the provider returns no rows.
+
+ISO-week summaries are computed by `HistoryAggregator`: weeks run Monday through Sunday, the current week ends today, missing window dates are zero-filled, and each week tracks total steps, the average over elapsed days, and the number of days meeting the goal.
 
 The provider exposes no body data. Distance uses `steps * 0.6 m`; calories use the speed bands above. Weight, height, gender, or foot length would require an optional user profile and are not read from MIUI.
 
@@ -138,15 +144,20 @@ The provider exposes no body data. Distance uses `steps * 0.6 m`; calories use t
 
 Dark surface inspired by App Vault's black widget cards.
 
-- **Header:** step title, current/selected date, refresh icon; refresh disabled while loading.
+- **Navigation:** slim custom bottom bar with equal `Today` and `History` tabs, an accent pill on the selected tab, and a 1 dp top divider. Back from History returns to Today.
+- **Today header:** Today title, current date, refresh icon; refresh disabled while loading.
 - **Access card (conditional):** explains MIUI provider and runtime permission; "Allow access" launches `ACTIVITY_RECOGNITION`. On non-Xiaomi devices, explains that the MIUI provider is unavailable.
 - **Hero ring:** auto-sized circular progress, gradient sweep, animated formatted step count, remaining steps, and a tappable goal line.
 - **Stats strip:** compact distance (km), calories (kcal), and active minutes.
-- **One chart at a time:** a `Week | Hourly` segmented switch. The week chart has 7 rounded bars, a dashed goal line, weekday labels, selected-day highlight, and a heavier label for today. The hourly chart has 24 bars for the selected day. Both expose tap/keyboard/accessibility actions and show a detail line.
+- **Today chart:** a single hourly chart with 24 bars for today, tap/keyboard/accessibility selection, and a detail line. There is no week chart or Week/Hourly switch on Today.
+- **History summary:** 60-day total, daily average, and best day.
+- **Weekly totals:** one interactive bar per ISO week; selecting a week updates the day list. The current week is selected by default.
+- **Selected-week list:** date range and weekly total, then day rows newest-first with steps, distance, and a thin goal-progress bar. Tapping a row opens the day sheet.
+- **Day-detail sheet:** `ModalBottomSheet` with the full date, steps/distance/calories/active time, goal line, and the same hourly chart. Hourly rows load from cache first and are fetched lazily when missing; cached data remains visible on failure with a retry action.
 - **Goal editing:** tapping the hero goal line opens the goal dialog (1,000–100,000) with preset chips and +/- steppers.
-- **Footer:** source/status and last sync time.
+- **Footers:** source/status and last sync time on both destinations.
 - **Refresh feedback:** pull-to-refresh plus the toolbar action; cached content remains visible during refresh.
-- **Empty/cached states:** cached data stays visible with a status line when refresh fails.
+- **Empty/cached states:** cached data stays visible with a status line when refresh fails; History shows an explicit empty state before the first sync.
 
 ## 8. Widget specification
 
@@ -174,8 +185,9 @@ Widget metadata: 4x2 `minWidth 314dp`, `minHeight 115dp`, `targetCellWidth 4`, `
 
 ## 9. Refresh strategy
 
-- Dashboard: `FULL` refresh on resume, manual refresh, and after permission grant/goal change.
-- Widgets: `onUpdate`, `onAppWidgetOptionsChanged`, and the MIUI update broadcast query and refresh asynchronously with `goAsync()` using a `TODAY` refresh.
+- Today: `refreshToday` on tab visible (20 s TTL), manual refresh, and after permission grant/goal change.
+- History: `loadHistory` for immediate cache, then `refreshHistory` when the tab opens and the 5-minute TTL has expired; manual refresh and pull-to-refresh force a query. Hourly rows load lazily for the selected day.
+- Widgets: `onUpdate`, `onAppWidgetOptionsChanged`, and the MIUI update broadcast query and refresh asynchronously with `goAsync()` using `refreshToday`.
 - Provider observer: `StepVaultApp` registers a `ContentObserver` on both candidate URIs only while the app is in the foreground and at least one widget exists. Notifications are debounced for 1.5 s and throttled to a 15 s minimum interval before `WidgetUpdater.updateAll()`.
 - Background: unique `PeriodicWorkRequest` every 30 minutes, scheduled only while widgets exist and cancelled when the last widget is removed. After refresh, all widget instances are updated.
 - Overlapping refreshes are coalesced by the repository mutex/TTL; widget renders are skipped when the snapshot signature is unchanged.

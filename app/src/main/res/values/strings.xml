@@ -3,6 +3,8 @@
     <string name="app_name">StepVault</string>
 
     <string name="steps_title">Steps</string>
+    <string name="tab_today">Today</string>
+    <string name="tab_history">History</string>
     <string name="refresh">Refresh</string>
     <string name="loading">Reading step data…</string>
     <string name="today_header">Today, %1$s</string>
@@ -14,25 +16,37 @@
     <string name="distance_value_format">%1$s km</string>
     <string name="calories_value_format">%1$s kcal</string>
     <string name="week_goal_legend">Goal %1$s</string>
-    <string name="week_day_metrics_format">%1$s km · %2$s kcal</string>
     <string name="steps_count_format">%1$s steps</string>
     <string name="hourly_detail_format">%1$s · %2$s steps · %3$s km · %4$s kcal</string>
 
-    <string name="chart_week">Week</string>
-    <string name="chart_hourly">Hourly</string>
-    <string name="chart_week_title">Last 7 days</string>
+    <string name="chart_week_title">Weekly totals</string>
     <string name="chart_hourly_title">Hourly steps</string>
-    <string name="no_week_data">No step data for this week</string>
+    <string name="no_week_data">No step data yet</string>
     <string name="no_hour_data">No hourly data for this day</string>
-    <string name="chart_week_description">Seven-day step chart. Selected %1$s, %2$s steps.</string>
     <string name="chart_hour_description">Hourly step chart for %1$s. Selected %2$s, %3$s steps.</string>
-    <string name="previous_day">Previous day</string>
-    <string name="next_day">Next day</string>
     <string name="previous_hour">Previous hour</string>
     <string name="next_hour">Next hour</string>
     <string name="goal_edit_description">Edit daily step goal</string>
     <string name="decrease">Decrease</string>
     <string name="increase">Increase</string>
+
+    <string name="history_title">History</string>
+    <string name="history_subtitle">Last %1$d days</string>
+    <string name="history_total_label">Total</string>
+    <string name="history_average_label">Daily average</string>
+    <string name="history_best_label">Best day</string>
+    <string name="history_empty_title">No history yet</string>
+    <string name="history_empty_body">Steps will appear here after the first successful sync.</string>
+    <string name="history_week_range">%1$s – %2$s</string>
+    <string name="history_week_total">%1$s steps</string>
+    <string name="history_cached">Cached</string>
+    <string name="history_week_description">Weekly steps chart. Selected %1$s, %2$s steps.</string>
+    <string name="previous_week">Previous week</string>
+    <string name="next_week">Next week</string>
+    <string name="day_goal_format">Goal %1$s · %2$d%%</string>
+    <string name="day_sheet_steps">Steps</string>
+    <string name="hours_cached">Showing saved hourly data</string>
+    <string name="history_day_description">%1$s, %2$s steps, %3$s km</string>
 
     <string name="goal_dialog_title">Daily step goal</string>
     <string name="goal_dialog_body">Choose a target between 1,000 and 100,000 steps.</string>

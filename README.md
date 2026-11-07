@@ -4,9 +4,9 @@ A clean-room Kotlin recreation of Xiaomi App Vault's step dashboard and health w
 
 ## Features
 
-- Today's steps, goal ring, distance, calories, and active time.
-- One chart at a time: a `Week` / `Hourly` switch, with tap-to-inspect details.
-- Minimal dashboard: hero ring, compact metrics strip, no stacked chart cards.
+- Today's steps, goal ring, distance, calories, active time, and a single hourly chart.
+- History tab with a 60-day summary, weekly totals, a selected-week day list, and an hourly day-detail sheet.
+- Two slim bottom tabs (`Today` / `History`); no stacked chart cards.
 - 4x2 widget with a single hero metric, tappable goal, progress, and a compact distance/calories line; 2x1 widget keeps its compact goal, progress, and metrics layout.
 - Runtime `ACTIVITY_RECOGNITION` handling plus Xiaomi's `miui.permission.READ_STEPS`.
 - Local Room cache for daily and hourly data, including offline/stale rendering.
@@ -14,7 +14,7 @@ A clean-room Kotlin recreation of Xiaomi App Vault's step dashboard and health w
 - R8-minified, resource-shrunk release build with no icon pack dependency.
 - No `INTERNET` permission, analytics, ads, or third-party SDKs.
 
-Implementation decisions and the current refinement status are tracked in [`docs/REFINEMENT_PLAN.md`](docs/REFINEMENT_PLAN.md).
+Implementation decisions and the current refinement status are tracked in [`docs/REFINEMENT_PLAN.md`](docs/REFINEMENT_PLAN.md). The History tab and Today redesign are specified in [`docs/HISTORY_PLAN.md`](docs/HISTORY_PLAN.md).
 
 ## Data flow
 
@@ -22,11 +22,12 @@ Implementation decisions and the current refinement status are tracked in [`docs
 com.miui.providers.steps
   -> StepProviderClient (begin/end/mode/steps)
   -> StepAggregator (day/hour grouping, 0.6 m/step, speed-based kcal)
+  -> HistoryAggregator (ISO-week grouping, averages, goal days)
   -> Room daily_steps + hourly_steps
-  -> Compose dashboard + RemoteViews widgets
+  -> Compose Today/History screens + RemoteViews widgets
 ```
 
-A foreground-only `ContentObserver` watches the provider and debounces widget refreshes. Background work is a 30-minute WorkManager job that only runs while at least one widget exists; the system widget `updatePeriodMillis` is disabled to avoid duplicate wakeups. The UI uses a 7-day refresh, widgets and background work use a today-only refresh, and overlapping requests are coalesced.
+A foreground-only `ContentObserver` watches the provider and debounces widget refreshes. Background work is a 30-minute WorkManager job that only runs while at least one widget exists; the system widget `updatePeriodMillis` is disabled to avoid duplicate wakeups. The Today screen and widgets use a today-only refresh (20 s coalescing); History queries the 60-day daily window on tab open with a 5-minute TTL, and hourly rows are fetched lazily per selected day. Overlapping provider requests are serialized.
 
 The provider query uses `content://0@com.miui.providers.steps/item` and falls back to `content://com.miui.providers.steps/item`, matching App Vault’s user-0 URI first. The app also declares a `<queries>` provider entry for Android 11+ package visibility.
 
@@ -85,8 +86,8 @@ Widgets show a setup state when there is no cached data and access is unavailabl
 ```text
 app/src/main/java/com/stepvault/app/
   data/       provider client, repository, DataStore goal, Room cache
-  domain/     models and pure aggregation
-  ui/         Compose dashboard, ring, chart, cards
+  domain/     models, step aggregation, history aggregation
+  ui/         Today/History screens, tabs, charts, cards, day sheet
   widget/     AppWidgetProviders, RemoteViews renderer, updater
   work/       periodic sync worker
 docs/         technical plan, SRS, development plan, refinement plan

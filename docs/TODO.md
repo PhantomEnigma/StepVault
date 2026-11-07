@@ -38,6 +38,19 @@
 - [x] Add chart custom actions and empty states.
 - [x] Add release size/lint CI reporting.
 
+## History tab and Today redesign
+
+- [x] Confirm scope: 60-day window, slim bottom tabs, day-detail bottom sheet, weekly totals bars, on-open refresh with 5-minute TTL.
+- [x] Write `docs/HISTORY_PLAN.md`.
+- [x] Add `WeekSummary`, `HistorySnapshot`, `DayHours`, and `HistoryAggregator` with unit tests.
+- [x] Split repository into `refreshToday` / `loadToday` / `refreshHistory` / `loadHistory` / `loadDayHours`.
+- [x] Add `StepVaultRoot` with bottom tabs, local vector icons, and back handling.
+- [x] Reduce Today to hero, metrics, and one hourly chart.
+- [x] Build History summary, weekly totals bars, selected-week rows, and empty/cached states.
+- [x] Build the hourly day-detail bottom sheet with lazy loading and retry.
+- [x] Update SRS, TECH_PLAN, DEV_PLAN, and README.
+- [ ] Verify static references and run tests/assemble on CI or Android Studio.
+
 ## Verification
 
 - [x] Static XML/resource/reference validation and compile-oriented review.
@@ -47,7 +60,8 @@
 - [ ] Verify live steps match the system step counter.
 - [ ] Verify both widgets in setup, active, and cached states.
 - [ ] Verify 2x1 margins, metrics, large step/goal values, and enlarged font scale.
-- [ ] Verify `Week | Hourly` switch and bar selection updates summaries.
+- [ ] Verify Today shows only the hourly chart and History weekly bars select a week.
+- [ ] Verify a history day row opens the hourly sheet and back closes it before leaving History.
 - [ ] Verify provider changes trigger a debounced widget refresh while the app is in the foreground.
 - [ ] Verify goal change updates dashboard and widgets, including tapping the 4x2 goal line.
 - [ ] Verify non-Xiaomi device shows provider-unavailable state.

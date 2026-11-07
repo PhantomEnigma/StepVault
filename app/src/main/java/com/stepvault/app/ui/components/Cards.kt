@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.stepvault.app.R
 import com.stepvault.app.data.GoalStore
+import com.stepvault.app.domain.StepStatus
 
 @Composable
 fun AccessCard(
@@ -94,6 +95,52 @@ fun AccessCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun StatusCard(
+    status: StepStatus,
+    message: String?,
+    onRefresh: () -> Unit,
+    onAllowAccess: () -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (status) {
+        StepStatus.PROVIDER_UNAVAILABLE -> AccessCard(
+            title = stringResource(R.string.provider_missing_title),
+            body = stringResource(R.string.provider_missing_body),
+            modifier = modifier,
+        )
+
+        StepStatus.PERMISSION_REQUIRED -> AccessCard(
+            title = stringResource(R.string.access_title),
+            body = stringResource(R.string.access_body),
+            modifier = modifier,
+            actionLabel = stringResource(R.string.allow_access),
+            onAction = onAllowAccess,
+            secondaryLabel = stringResource(R.string.open_settings),
+            onSecondaryAction = onOpenSettings,
+        )
+
+        StepStatus.PERMISSION_DENIED -> AccessCard(
+            title = stringResource(R.string.permission_denied_title),
+            body = stringResource(R.string.permission_denied_body),
+            modifier = modifier,
+            actionLabel = stringResource(R.string.open_settings),
+            onAction = onOpenSettings,
+        )
+
+        StepStatus.ERROR -> AccessCard(
+            title = stringResource(R.string.error_title),
+            body = message ?: stringResource(R.string.error_title),
+            modifier = modifier,
+            actionLabel = stringResource(R.string.retry),
+            onAction = onRefresh,
+        )
+
+        StepStatus.READY -> Unit
     }
 }
 

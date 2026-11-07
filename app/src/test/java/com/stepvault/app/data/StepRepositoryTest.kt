@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class StepRepositoryTest {
@@ -42,11 +43,11 @@ class StepRepositoryTest {
         seedHourly(today, hour = 9, steps = 400)
         provider.result = StepProviderClient.QueryResult.Success(emptyList())
 
-        val snapshot = repository.refresh(RefreshMode.FULL, force = true)
+        val snapshot = repository.refreshToday(force = true)
 
         assertEquals(StepStatus.READY, snapshot.status)
         assertEquals(5_000, snapshot.today.steps)
-        assertEquals(7, snapshot.week.size)
+        assertEquals(400, snapshot.hours[9].steps)
         assertEquals(5_000, dailyRow(today).steps)
         assertEquals(1, dao.getHourlyRange(today.toEpochDay(), today.toEpochDay()).size)
     }
@@ -57,9 +58,9 @@ class StepRepositoryTest {
         seedDaily(yesterday, steps = 4_200)
         provider.result = StepProviderClient.QueryResult.Success(emptyList())
 
-        val snapshot = repository.refresh(RefreshMode.FULL, force = true)
+        val snapshot = repository.refreshHistory(force = true)
 
-        assertEquals(4_200, snapshot.week.first { it.date == yesterday }.steps)
+        assertEquals(4_200, snapshot.days.first { it.date == yesterday }.steps)
         assertEquals(4_200, dailyRow(yesterday).steps)
     }
 
@@ -70,7 +71,7 @@ class StepRepositoryTest {
             listOf(sample(today, hour = 9, steps = 1_200)),
         )
 
-        val snapshot = repository.refresh(RefreshMode.TODAY, force = true)
+        val snapshot = repository.refreshToday(force = true)
 
         assertEquals(1_200, snapshot.today.steps)
         assertEquals(1_200, dailyRow(today).steps)
@@ -81,19 +82,19 @@ class StepRepositoryTest {
     fun todayRefresh_queriesOnlyToday() = runTest {
         provider.result = StepProviderClient.QueryResult.Success(emptyList())
 
-        repository.refresh(RefreshMode.TODAY, force = true)
+        repository.refreshToday(force = true)
 
         assertEquals(startOf(today), provider.lastStart)
         assertEquals(startOf(today.plusDays(1)), provider.lastEnd)
     }
 
     @Test
-    fun fullRefresh_queriesSevenDayWindow() = runTest {
+    fun historyRefresh_queriesSixtyDayWindow() = runTest {
         provider.result = StepProviderClient.QueryResult.Success(emptyList())
 
-        repository.refresh(RefreshMode.FULL, force = true)
+        repository.refreshHistory(force = true)
 
-        assertEquals(startOf(today.minusDays(6)), provider.lastStart)
+        assertEquals(startOf(today.minusDays(59)), provider.lastStart)
         assertEquals(startOf(today.plusDays(1)), provider.lastEnd)
     }
 
@@ -101,39 +102,40 @@ class StepRepositoryTest {
     fun todayRefresh_isCoalescedWithinTtl() = runTest {
         provider.result = StepProviderClient.QueryResult.Success(emptyList())
 
-        repository.refresh(RefreshMode.TODAY, force = true)
-        repository.refresh(RefreshMode.TODAY)
+        repository.refreshToday(force = true)
+        repository.refreshToday()
         assertEquals(1, provider.queries)
 
         clock.instant = clock.instant.plusSeconds(30)
-        repository.refresh(RefreshMode.TODAY)
+        repository.refreshToday()
         assertEquals(2, provider.queries)
     }
 
     @Test
-    fun fullRefreshAfterToday_doesNotReuseTodaySnapshot() = runTest {
+    fun historyRefresh_isCoalescedWithinFiveMinutes() = runTest {
         provider.result = StepProviderClient.QueryResult.Success(emptyList())
 
-        repository.refresh(RefreshMode.TODAY, force = true)
-        repository.refresh(RefreshMode.FULL)
+        repository.refreshHistory(force = true)
+        repository.refreshHistory()
+        assertEquals(1, provider.queries)
+
+        clock.instant = clock.instant.plusSeconds(4 * 60)
+        repository.refreshHistory()
+        assertEquals(1, provider.queries)
+
+        clock.instant = clock.instant.plusSeconds(2 * 60)
+        repository.refreshHistory()
         assertEquals(2, provider.queries)
-        assertEquals(startOf(today.minusDays(6)), provider.lastStart)
     }
 
     @Test
-    fun fullRefreshAfterFullAndToday_doesNotReuseTodaySnapshot() = runTest {
+    fun todayAndHistory_haveIndependentFreshness() = runTest {
         provider.result = StepProviderClient.QueryResult.Success(emptyList())
 
-        repository.refresh(RefreshMode.FULL, force = true)
-        clock.instant = clock.instant.plusSeconds(1)
-        repository.refresh(RefreshMode.TODAY, force = true)
-        clock.instant = clock.instant.plusSeconds(1)
-
-        val snapshot = repository.refresh(RefreshMode.FULL)
-
-        assertEquals(3, provider.queries)
-        assertEquals(7, snapshot.week.size)
-        assertEquals(startOf(today.minusDays(6)), provider.lastStart)
+        repository.refreshToday(force = true)
+        repository.refreshHistory()
+        assertEquals(2, provider.queries)
+        assertEquals(startOf(today.minusDays(59)), provider.lastStart)
     }
 
     @Test
@@ -141,7 +143,7 @@ class StepRepositoryTest {
         seedDaily(today, steps = 3_000)
         provider.result = StepProviderClient.QueryResult.PermissionRequired
 
-        val snapshot = repository.refresh(RefreshMode.TODAY, force = true)
+        val snapshot = repository.refreshToday(force = true)
 
         assertEquals(StepStatus.PERMISSION_REQUIRED, snapshot.status)
         assertEquals(3_000, snapshot.today.steps)
@@ -153,11 +155,81 @@ class StepRepositoryTest {
         seedHourly(today, hour = 7, steps = 250)
         provider.result = StepProviderClient.QueryResult.Success(emptyList())
 
-        repository.refresh(RefreshMode.TODAY, force = true)
+        repository.refreshToday(force = true)
 
         val rows = dao.getHourlyRange(today.toEpochDay(), today.toEpochDay())
         assertEquals(1, rows.size)
         assertEquals(250, rows.single().steps)
+    }
+
+    @Test
+    fun loadDayHours_usesCacheWithoutProviderQuery() = runTest {
+        seedHourly(today, hour = 7, steps = 250)
+
+        val hours = repository.loadDayHours(today)
+
+        assertEquals(0, provider.queries)
+        assertEquals(24, hours.hours.size)
+        assertEquals(250, hours.hours[7].steps)
+    }
+
+    @Test
+    fun loadDayHours_queriesWhenCacheMissing() = runTest {
+        provider.result = StepProviderClient.QueryResult.Success(
+            listOf(sample(today, hour = 9, steps = 1_200)),
+        )
+
+        val hours = repository.loadDayHours(today)
+
+        assertEquals(1, provider.queries)
+        assertEquals(startOf(today), provider.lastStart)
+        assertEquals(startOf(today.plusDays(1)), provider.lastEnd)
+        assertEquals(1_200, hours.hours[9].steps)
+        assertEquals(1, dao.getHourlyRange(today.toEpochDay(), today.toEpochDay()).size)
+    }
+
+    @Test
+    fun loadDayHours_emptyProviderPreservesCache() = runTest {
+        seedHourly(today, hour = 7, steps = 250)
+        provider.result = StepProviderClient.QueryResult.Success(emptyList())
+
+        val hours = repository.loadDayHours(today, force = true)
+
+        assertEquals(250, hours.hours[7].steps)
+        assertEquals(1, dao.getHourlyRange(today.toEpochDay(), today.toEpochDay()).size)
+    }
+
+    @Test
+    fun historyRefresh_prunesRowsOlderThanCacheWindow() = runTest {
+        seedDaily(today.minusDays(61), steps = 1_000)
+        provider.result = StepProviderClient.QueryResult.Success(emptyList())
+
+        repository.refreshHistory(force = true)
+
+        assertNull(dailyRowOrNull(today.minusDays(61)))
+    }
+
+    @Test
+    fun refreshHistory_cachedGoalChangeRebuildsWithoutQuery() = runTest {
+        provider.result = StepProviderClient.QueryResult.Success(emptyList())
+        repository.refreshHistory(force = true)
+        assertEquals(1, provider.queries)
+
+        goals.setGoal(10_000)
+        val snapshot = repository.refreshHistory()
+
+        assertEquals(1, provider.queries)
+        assertEquals(10_000, snapshot.goal)
+    }
+
+    @Test
+    fun loadHistory_usesUpdatedGoalWithoutProviderQuery() = runTest {
+        goals.setGoal(10_000)
+
+        val snapshot = repository.loadHistory()
+
+        assertEquals(0, provider.queries)
+        assertEquals(10_000, snapshot.goal)
     }
 
     private suspend fun seedDaily(date: LocalDate, steps: Int) {
@@ -193,6 +265,9 @@ class StepRepositoryTest {
 
     private suspend fun dailyRow(date: LocalDate): DailyStepEntity =
         dao.getRange(date.toEpochDay(), date.toEpochDay()).single()
+
+    private suspend fun dailyRowOrNull(date: LocalDate): DailyStepEntity? =
+        dao.getRange(date.toEpochDay(), date.toEpochDay()).firstOrNull()
 
     private fun startOf(date: LocalDate): Long =
         date.atStartOfDay(zone).toInstant().toEpochMilli()
